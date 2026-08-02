@@ -9,7 +9,7 @@ afterEach(() => {
 describe("haos-ai-panel", () => {
   it("boots when Home Assistant assigns hass after connection", async () => {
     const sendMessagePromise = vi.fn().mockResolvedValue({
-      version: "1.0.0",
+      version: "1.0.1",
       provider: "openai",
       model: "gpt-5.6",
       base_url: "https://api.openai.com/v1",
@@ -52,7 +52,7 @@ describe("haos-ai-panel", () => {
 
   it("shows an automation's plain-language explanation before its YAML", async () => {
     const sendMessagePromise = vi.fn().mockResolvedValue({
-      version: "1.0.0",
+      version: "1.0.1",
       provider: "deepseek",
       model: "deepseek-v4-flash",
       base_url: "https://api.deepseek.com",
@@ -134,7 +134,7 @@ describe("haos-ai-panel", () => {
 
   it("loads the local privacy ledger only when Activity is opened", async () => {
     const overview = {
-      version: "1.0.0",
+      version: "1.0.1",
       provider: "openai",
       model: "gpt-5.6",
       base_url: "https://api.openai.com/v1",
@@ -179,7 +179,7 @@ describe("haos-ai-panel", () => {
 
   it("searches and accepts pasted entity IDs in the ignored-entity picker", async () => {
     const overview = {
-      version: "1.0.0",
+      version: "1.0.1",
       provider: "openai",
       model: "gpt-5.6",
       base_url: "https://api.openai.com/v1",

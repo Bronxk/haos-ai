@@ -1891,13 +1891,13 @@ export class HaosAiPanel extends LitElement {
             <div><h3>About and updates</h3><p>HAOS AI ${this.overview.version} · Assist agent ready.</p></div>
           </div>
           <div class="about-actions">
-            <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=haos-ai&repository=haos-ai&category=integration" target="_blank" rel="noreferrer">
+            <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=Bronxk&repository=haos-ai&category=integration" target="_blank" rel="noreferrer">
               <ha-icon icon="mdi:update"></ha-icon><span>Open in HACS</span>
             </a>
-            <a href="https://github.com/haos-ai/haos-ai/releases" target="_blank" rel="noreferrer">
+            <a href="https://github.com/Bronxk/haos-ai/releases" target="_blank" rel="noreferrer">
               <ha-icon icon="mdi:text-box-outline"></ha-icon><span>Release notes</span>
             </a>
-            <a href="https://github.com/haos-ai/haos-ai/issues" target="_blank" rel="noreferrer">
+            <a href="https://github.com/Bronxk/haos-ai/issues" target="_blank" rel="noreferrer">
               <ha-icon icon="mdi:bug-outline"></ha-icon><span>Report a problem</span>
             </a>
           </div>

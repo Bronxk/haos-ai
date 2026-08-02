@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1
+
+- Corrected HACS, documentation, release, and issue links to the public
+  `Bronxk/haos-ai` repository.
+- Packaged the HAOS AI brand icon inside the integration for HACS validation.
+
 ## 1.0.0
 
 - Rebuilt the panel around Home Assistant's native visual language, responsive

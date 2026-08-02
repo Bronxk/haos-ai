@@ -5,10 +5,10 @@
   "codeowners": ["@Bronxk"],
   "config_flow": true,
   "dependencies": ["conversation", "frontend", "http", "persistent_notification", "websocket_api"],
-  "documentation": "https://github.com/haos-ai/haos-ai",
+  "documentation": "https://github.com/Bronxk/haos-ai",
   "integration_type": "service",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/haos-ai/haos-ai/issues",
+  "issue_tracker": "https://github.com/Bronxk/haos-ai/issues",
   "requirements": [],
-  "version": "1.0.0"
+  "version": "1.0.1"
 }

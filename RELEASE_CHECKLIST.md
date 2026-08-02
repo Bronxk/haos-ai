@@ -3,7 +3,7 @@
 ## Blocking before the first public release
 
 - [ ] Create or transfer the public repository at
-  `https://github.com/haos-ai/haos-ai`.
+  `https://github.com/Bronxk/haos-ai`.
 - [x] Set a real maintainer in `manifest.json` under `codeowners` (`@Bronxk`).
 - [ ] Enable GitHub issues or replace the manifest's `issue_tracker`.
 - [ ] Add repository branding/screenshots and confirm the HACS listing assets.

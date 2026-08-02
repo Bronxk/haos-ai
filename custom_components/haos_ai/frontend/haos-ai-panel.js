@@ -776,7 +776,7 @@ function Ss(s, e) {
       return i;
   }
 }
-function ji(s, e) {
+function Bi(s, e) {
   const t = [], i = /* @__PURE__ */ new Map();
   let n = null;
   return {
@@ -965,7 +965,7 @@ E.BLOCK_LITERAL = "BLOCK_LITERAL";
 E.PLAIN = "PLAIN";
 E.QUOTE_DOUBLE = "QUOTE_DOUBLE";
 E.QUOTE_SINGLE = "QUOTE_SINGLE";
-const Bi = "tag:yaml.org,2002:";
+const ji = "tag:yaml.org,2002:";
 function Ui(s, e, t) {
   if (e) {
     const i = t.filter((a) => a.tag === e), n = i.find((a) => !a.format) ?? i[0];
@@ -990,7 +990,7 @@ function Le(s, e, t) {
       return l.anchor ?? (l.anchor = n(s)), new Lt(l.anchor);
     l = { anchor: null, node: null }, o.set(s, l);
   }
-  e?.startsWith("!!") && (e = Bi + e.slice(2));
+  e?.startsWith("!!") && (e = ji + e.slice(2));
   let c = Ui(s, e, r.tags);
   if (!c) {
     if (s && typeof s.toJSON == "function" && (s = s.toJSON()), !s || typeof s != "object") {
@@ -1662,15 +1662,15 @@ function Gi(s, e, t) {
 }
 function Pt(s, e, t) {
   const i = Le(s, void 0, t), n = Le(e, void 0, t);
-  return new j(i, n);
+  return new B(i, n);
 }
-class j {
+class B {
   constructor(e, t = null) {
     Object.defineProperty(this, K, { value: ws }), this.key = e, this.value = t;
   }
   clone(e) {
     let { key: t, value: i } = this;
-    return L(t) && (t = t.clone(e)), L(i) && (i = i.clone(e)), new j(t, i);
+    return L(t) && (t = t.clone(e)), L(i) && (i = i.clone(e)), new B(t, i);
   }
   toJSON(e, t) {
     const i = t?.mapAsMap ? /* @__PURE__ */ new Map() : {};
@@ -1771,7 +1771,7 @@ function te(s, e) {
     if (D(i) && (i.key === e || i.key === t || I(i.key) && i.key.value === t))
       return i;
 }
-class B extends _s {
+class j extends _s {
   static get tagName() {
     return "tag:yaml.org,2002:map";
   }
@@ -1806,7 +1806,7 @@ class B extends _s {
    */
   add(e, t) {
     let i;
-    D(e) ? i = e : !e || typeof e != "object" || !("key" in e) ? i = new j(e, e?.value) : i = new j(e.key, e.value);
+    D(e) ? i = e : !e || typeof e != "object" || !("key" in e) ? i = new B(e, e?.value) : i = new B(e.key, e.value);
     const n = te(this.items, i.key), a = this.schema?.sortMapEntries;
     if (n) {
       if (!t)
@@ -1830,7 +1830,7 @@ class B extends _s {
     return !!te(this.items, e);
   }
   set(e, t) {
-    this.add(new j(e, t), !0);
+    this.add(new B(e, t), !0);
   }
   /**
    * @param ctx - Conversion context, originally set in Document#toJS()
@@ -1862,12 +1862,12 @@ class B extends _s {
 const we = {
   collection: "map",
   default: !0,
-  nodeClass: B,
+  nodeClass: j,
   tag: "tag:yaml.org,2002:map",
   resolve(s, e) {
     return Me(s) || e("Expected a mapping for this tag"), s;
   },
-  createNode: (s, e, t) => B.from(s, e, t)
+  createNode: (s, e, t) => j.from(s, e, t)
 };
 class ie extends _s {
   static get tagName() {
@@ -2047,7 +2047,7 @@ function Rs(s, e, t) {
   const { value: i } = s;
   return lt(i) && i >= 0 ? t + i.toString(e) : z(s);
 }
-const js = {
+const Bs = {
   identify: (s) => lt(s) && s >= 0,
   default: !0,
   tag: "tag:yaml.org,2002:int",
@@ -2055,7 +2055,7 @@ const js = {
   test: /^0o[0-7]+$/,
   resolve: (s, e, t) => Rt(s, 2, 8, t),
   stringify: (s) => Rs(s, 8, "0o")
-}, Bs = {
+}, js = {
   identify: lt,
   default: !0,
   tag: "tag:yaml.org,2002:int",
@@ -2076,8 +2076,8 @@ const js = {
   rt,
   ot,
   Mt,
-  js,
   Bs,
+  js,
   Us,
   Ds,
   Ps,
@@ -2134,7 +2134,7 @@ const qe = ({ value: s }) => JSON.stringify(s), Xi = [
   resolve(s, e) {
     return e(`Unresolved plain scalar ${JSON.stringify(s)}`), s;
   }
-}, en = [we, $e].concat(Xi, Zi), jt = {
+}, en = [we, $e].concat(Xi, Zi), Bt = {
   identify: (s) => s instanceof Uint8Array,
   // Buffer inherits from Uint8Array
   default: !1,
@@ -2185,7 +2185,7 @@ function Ks(s, e) {
       if (!D(i)) {
         if (Me(i)) {
           i.items.length > 1 && e("Each pair must have its own sequence indicator");
-          const n = i.items[0] || new j(new E(null));
+          const n = i.items[0] || new B(new E(null));
           if (i.commentBefore && (n.key.commentBefore = n.key.commentBefore ? `${i.commentBefore}
 ${n.key.commentBefore}` : i.commentBefore), i.comment) {
             const a = n.value ?? n.key;
@@ -2194,7 +2194,7 @@ ${a.comment}` : i.comment;
           }
           i = n;
         }
-        s.items[t] = D(i) ? i : new j(i);
+        s.items[t] = D(i) ? i : new B(i);
       }
     }
   else
@@ -2226,7 +2226,7 @@ function qs(s, e, t) {
     }
   return n;
 }
-const Bt = {
+const jt = {
   collection: "seq",
   default: !1,
   tag: "tag:yaml.org,2002:pairs",
@@ -2235,7 +2235,7 @@ const Bt = {
 };
 class de extends ie {
   constructor() {
-    super(), this.add = B.prototype.add.bind(this), this.delete = B.prototype.delete.bind(this), this.get = B.prototype.get.bind(this), this.has = B.prototype.has.bind(this), this.set = B.prototype.set.bind(this), this.tag = de.tag;
+    super(), this.add = j.prototype.add.bind(this), this.delete = j.prototype.delete.bind(this), this.get = j.prototype.get.bind(this), this.has = j.prototype.has.bind(this), this.set = j.prototype.set.bind(this), this.tag = de.tag;
   }
   /**
    * If `ctx` is given, the return type is actually `Map<unknown, unknown>`,
@@ -2323,7 +2323,7 @@ const Hs = {
     return e;
   },
   stringify: z
-}, je = (s) => typeof s == "bigint" || Number.isInteger(s);
+}, Be = (s) => typeof s == "bigint" || Number.isInteger(s);
 function ct(s, e, t, { intAsBigInt: i }) {
   const n = s[0];
   if ((n === "-" || n === "+") && (e += 1), s = s.substring(e).replace(/_/g, ""), i) {
@@ -2346,14 +2346,14 @@ function ct(s, e, t, { intAsBigInt: i }) {
 }
 function Kt(s, e, t) {
   const { value: i } = s;
-  if (je(i)) {
+  if (Be(i)) {
     const n = i.toString(e);
     return i < 0 ? "-" + t + n.substr(1) : t + n;
   }
   return z(s);
 }
 const an = {
-  identify: je,
+  identify: Be,
   default: !0,
   tag: "tag:yaml.org,2002:int",
   format: "BIN",
@@ -2361,7 +2361,7 @@ const an = {
   resolve: (s, e, t) => ct(s, 2, 2, t),
   stringify: (s) => Kt(s, 2, "0b")
 }, rn = {
-  identify: je,
+  identify: Be,
   default: !0,
   tag: "tag:yaml.org,2002:int",
   format: "OCT",
@@ -2369,14 +2369,14 @@ const an = {
   resolve: (s, e, t) => ct(s, 1, 8, t),
   stringify: (s) => Kt(s, 8, "0")
 }, on = {
-  identify: je,
+  identify: Be,
   default: !0,
   tag: "tag:yaml.org,2002:int",
   test: /^[-+]?[0-9][0-9_]*$/,
   resolve: (s, e, t) => ct(s, 0, 10, t),
   stringify: z
 }, ln = {
-  identify: je,
+  identify: Be,
   default: !0,
   tag: "tag:yaml.org,2002:int",
   format: "HEX",
@@ -2384,13 +2384,13 @@ const an = {
   resolve: (s, e, t) => ct(s, 2, 16, t),
   stringify: (s) => Kt(s, 16, "0x")
 };
-class ue extends B {
+class ue extends j {
   constructor(e) {
     super(e), this.tag = ue.tag;
   }
   add(e) {
     let t;
-    D(e) ? t = e : e && typeof e == "object" && "key" in e && "value" in e && e.value === null ? t = new j(e.key, null) : t = new j(e, null), te(this.items, t.key) || this.items.push(t);
+    D(e) ? t = e : e && typeof e == "object" && "key" in e && "value" in e && e.value === null ? t = new B(e.key, null) : t = new B(e, null), te(this.items, t.key) || this.items.push(t);
   }
   /**
    * If `keepPair` is `true`, returns the Pair matching `key`.
@@ -2404,7 +2404,7 @@ class ue extends B {
     if (typeof t != "boolean")
       throw new Error(`Expected boolean value for set(key, value) in a YAML set, not ${typeof t}`);
     const i = te(this.items, e);
-    i && !t ? this.items.splice(this.items.indexOf(i), 1) : !i && t && this.items.push(new j(e));
+    i && !t ? this.items.splice(this.items.indexOf(i), 1) : !i && t && this.items.push(new B(e));
   }
   toJSON(e, t) {
     return super.toJSON(e, t, Set);
@@ -2509,10 +2509,10 @@ const Ys = {
   tn,
   sn,
   nn,
-  jt,
+  Bt,
   V,
   Ut,
-  Bt,
+  jt,
   qt,
   Ys,
   Gs,
@@ -2524,29 +2524,29 @@ const Ys = {
   ["yaml11", rs],
   ["yaml-1.1", rs]
 ]), ls = {
-  binary: jt,
+  binary: Bt,
   bool: Mt,
   float: Ms,
   floatExp: Ps,
   floatNaN: Ds,
   floatTime: Gs,
-  int: Bs,
+  int: js,
   intHex: Us,
-  intOct: js,
+  intOct: Bs,
   intTime: Ys,
   map: we,
   merge: V,
   null: ot,
   omap: Ut,
-  pairs: Bt,
+  pairs: jt,
   seq: $e,
   set: qt,
   timestamp: ht
 }, cn = {
-  "tag:yaml.org,2002:binary": jt,
+  "tag:yaml.org,2002:binary": Bt,
   "tag:yaml.org,2002:merge": V,
   "tag:yaml.org,2002:omap": Ut,
-  "tag:yaml.org,2002:pairs": Bt,
+  "tag:yaml.org,2002:pairs": jt,
   "tag:yaml.org,2002:set": qt,
   "tag:yaml.org,2002:timestamp": ht
 };
@@ -2691,7 +2691,7 @@ let Ws = class Js {
       const g = (w) => typeof w == "number" || w instanceof String || w instanceof Number, b = t.filter(g).map(String);
       b.length > 0 && (t = t.concat(b)), n = t;
     } else i === void 0 && t && (i = t, t = void 0);
-    const { aliasDuplicateObjects: a, anchorPrefix: r, flow: o, keepUndefined: l, onTagObj: c, tag: p } = i ?? {}, { onAnchor: h, setAnchors: d, sourceObjects: f } = ji(
+    const { aliasDuplicateObjects: a, anchorPrefix: r, flow: o, keepUndefined: l, onTagObj: c, tag: p } = i ?? {}, { onAnchor: h, setAnchors: d, sourceObjects: f } = Bi(
       this,
       // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
       r || "a"
@@ -2712,7 +2712,7 @@ let Ws = class Js {
    */
   createPair(e, t, i = {}) {
     const n = this.createNode(e, null, i), a = this.createNode(t, null, i);
-    return new j(n, a);
+    return new B(n, a);
   }
   /**
    * Removes a value from the document.
@@ -2985,7 +2985,7 @@ function Xs(s, e, t) {
 }
 const hs = "All mapping items must start at the same column";
 function pn({ composeNode: s, composeEmptyNode: e }, t, i, n, a) {
-  const r = a?.nodeClass ?? B, o = new r(t.schema);
+  const r = a?.nodeClass ?? j, o = new r(t.schema);
   t.atRoot && (t.atRoot = !1);
   let l = i.offset, c = null;
   for (const p of i.items) {
@@ -3020,12 +3020,12 @@ function pn({ composeNode: s, composeEmptyNode: e }, t, i, n, a) {
       g && (m?.type === "block-map" && !k.hasNewline && n(l, "BLOCK_AS_IMPLICIT_KEY", "Nested mappings are not allowed in compact mappings"), t.options.strict && u.start < k.found.offset - 1024 && n(w.range, "KEY_OVER_1024_CHARS", "The : indicator must be at most 1024 chars after the start of an implicit block mapping key"));
       const A = m ? s(t, m, k, n) : e(t, l, f, null, k, n);
       t.schema.compat && xt(i.indent, m, n), l = A.range[2];
-      const _ = new j(w, A);
+      const _ = new B(w, A);
       t.options.keepSourceTokens && (_.srcToken = p), o.items.push(_);
     } else {
       g && n(w.range, "MISSING_CHAR", "Implicit map keys need to be followed by map values"), k.comment && (w.comment ? w.comment += `
 ` + k.comment : w.comment = k.comment);
-      const A = new j(w);
+      const A = new B(w);
       t.options.keepSourceTokens && (A.srcToken = p), o.items.push(A);
     }
   }
@@ -3056,7 +3056,7 @@ function fn({ composeNode: s, composeEmptyNode: e }, t, i, n, a) {
   }
   return o.range = [i.offset, l, c ?? l], o;
 }
-function Be(s, e, t, i) {
+function je(s, e, t, i) {
   let n = "";
   if (s) {
     let a = !1, r = "";
@@ -3085,7 +3085,7 @@ function Be(s, e, t, i) {
 }
 const ft = "Block collections are not allowed within flow collections", gt = (s) => s && (s.type === "block-map" || s.type === "block-seq");
 function gn({ composeNode: s, composeEmptyNode: e }, t, i, n, a) {
-  const r = i.start.source === "{", o = r ? "flow map" : "flow sequence", l = a?.nodeClass ?? (r ? B : ie), c = new l(t.schema);
+  const r = i.start.source === "{", o = r ? "flow map" : "flow sequence", l = a?.nodeClass ?? (r ? j : ie), c = new l(t.schema);
   c.flow = !0;
   const p = t.atRoot;
   p && (t.atRoot = !1), t.atKey && (t.atKey = !1);
@@ -3167,12 +3167,12 @@ function gn({ composeNode: s, composeEmptyNode: e }, t, i, n, a) {
       const Y = _ ? s(t, _, P, n) : P.found ? e(t, P.end, A, null, P, n) : null;
       Y ? gt(_) && n(Y.range, "BLOCK_IN_FLOW", ft) : P.comment && (v.comment ? v.comment += `
 ` + P.comment : v.comment = P.comment);
-      const ne = new j(v, Y);
+      const ne = new B(v, Y);
       if (t.options.keepSourceTokens && (ne.srcToken = b), r) {
         const M = c;
         Xs(t, M.items, v) && n(T, "DUPLICATE_KEY", "Map keys must be unique"), M.items.push(ne);
       } else {
-        const M = new B(t.schema);
+        const M = new j(t.schema);
         M.flow = !0, M.items.push(ne);
         const Vt = (Y ?? v).range;
         M.range = [v.range[0], Vt[1], Vt[2]], c.items.push(M);
@@ -3189,7 +3189,7 @@ function gn({ composeNode: s, composeEmptyNode: e }, t, i, n, a) {
     n(h, p ? "MISSING_CHAR" : "BAD_INDENT", b), f && f.source.length !== 1 && m.unshift(f);
   }
   if (m.length > 0) {
-    const g = Be(m, u, t.options.strict, n);
+    const g = je(m, u, t.options.strict, n);
     g.comment && (c.comment ? c.comment += `
 ` + g.comment : c.comment = g.comment), c.range = [i.offset, u, g.offset];
   } else
@@ -3207,7 +3207,7 @@ function mn(s, e, t, i, n) {
     m && (!f || f.offset < m.offset) && n(m, "MISSING_CHAR", "Missing newline after block sequence props");
   }
   const o = t.type === "block-map" ? "map" : t.type === "block-seq" ? "seq" : t.start.source === "{" ? "map" : "seq";
-  if (!a || !r || r === "!" || r === B.tagName && o === "map" || r === ie.tagName && o === "seq")
+  if (!a || !r || r === "!" || r === j.tagName && o === "map" || r === ie.tagName && o === "seq")
     return mt(s, e, t, n, r);
   let l = e.schema.tags.find((d) => d.tag === r && d.collection === o);
   if (!l) {
@@ -3364,7 +3364,7 @@ function wn(s, e, t) {
         range: [i, i + a.length, i + a.length]
       };
   }
-  const p = i + a.length, h = Be(r, p, e, t);
+  const p = i + a.length, h = je(r, p, e, t);
   return {
     value: l,
     type: o,
@@ -3620,7 +3620,7 @@ function Ft(s, e, t, i, { spaceBefore: n, comment: a, anchor: r, tag: o, end: l 
 function In({ options: s }, { offset: e, source: t, end: i }, n) {
   const a = new Lt(t.substring(1));
   a.source === "" && n(e, "BAD_ALIAS", "Alias cannot be an empty string"), a.source.endsWith(":") && n(e + t.length - 1, "BAD_ALIAS", "Alias ending in : is ambiguous", !0);
-  const r = e + t.length, o = Be(i, r, s.strict, n);
+  const r = e + t.length, o = je(i, r, s.strict, n);
   return a.range = [e, r, o.offset], o.comment && (a.comment = o.comment), a;
 }
 function Cn(s, e, { offset: t, start: i, value: n, end: a }, r) {
@@ -3639,7 +3639,7 @@ function Cn(s, e, { offset: t, start: i, value: n, end: a }, r) {
     startOnNewline: !0
   });
   p.found && (l.directives.docStart = !0, n && (n.type === "block-map" || n.type === "block-seq") && !p.hasNewline && r(p.end, "MISSING_CHAR", "Block collection cannot start on same line with directives-end marker")), l.contents = n ? ti(c, n, p, r) : Ft(c, p.end, i, null, p, r);
-  const h = l.contents.range[2], d = Be(a, h, !1, r);
+  const h = l.contents.range[2], d = je(a, h, !1, r);
   return d.comment && (l.comment = d.comment), l.range = [t, h, d.offset], l;
 }
 function ke(s) {
@@ -3764,7 +3764,7 @@ ${r}` : i;
           break;
         }
         this.doc.directives.docEnd = !0;
-        const t = Be(e.end, e.offset + e.source.length, this.doc.options.strict, this.onError);
+        const t = je(e.end, e.offset + e.source.length, this.doc.options.strict, this.onError);
         if (this.decorate(this.doc, !0), t.comment) {
           const i = this.doc.comment;
           this.doc.comment = i ? `${i}
@@ -4292,7 +4292,7 @@ class Rn {
     return yield* this.pushToIndex(t, !1);
   }
 }
-class jn {
+class Bn {
   constructor() {
     this.lineStarts = [], this.addNewLine = (e) => this.lineStarts.push(e), this.linePos = (e) => {
       let t = 0, i = this.lineStarts.length;
@@ -4383,7 +4383,7 @@ function fs(s) {
     for (const e of s.items)
       e.sep && !e.value && !G(e.start, "explicit-key-ind") && !G(e.sep, "map-value-ind") && (e.key && (e.value = e.key), delete e.key, ai(e.value) ? e.value.end ? Ze(e.value.end, e.sep) : e.value.end = e.sep : Ze(e.start, e.sep), delete e.sep);
 }
-class Bn {
+class jn {
   /**
    * @param onNewLine - If defined, called separately with the start position of
    *   each new line (in `parse()`, including the start of input).
@@ -4964,10 +4964,10 @@ class Bn {
 }
 function Un(s) {
   const e = s.prettyErrors !== !1;
-  return { lineCounter: s.lineCounter || e && new jn() || null, prettyErrors: e };
+  return { lineCounter: s.lineCounter || e && new Bn() || null, prettyErrors: e };
 }
 function Kn(s, e = {}) {
-  const { lineCounter: t, prettyErrors: i } = Un(e), n = new Bn(t?.addNewLine), a = new Ln(e);
+  const { lineCounter: t, prettyErrors: i } = Un(e), n = new jn(t?.addNewLine), a = new Ln(e);
   let r = null;
   for (const o of a.compose(n.parse(s), !0, s.length))
     if (!r)
@@ -6326,13 +6326,13 @@ ${this.draftYaml}
             <div><h3>About and updates</h3><p>HAOS AI ${this.overview.version} · Assist agent ready.</p></div>
           </div>
           <div class="about-actions">
-            <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=haos-ai&repository=haos-ai&category=integration" target="_blank" rel="noreferrer">
+            <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=Bronxk&repository=haos-ai&category=integration" target="_blank" rel="noreferrer">
               <ha-icon icon="mdi:update"></ha-icon><span>Open in HACS</span>
             </a>
-            <a href="https://github.com/haos-ai/haos-ai/releases" target="_blank" rel="noreferrer">
+            <a href="https://github.com/Bronxk/haos-ai/releases" target="_blank" rel="noreferrer">
               <ha-icon icon="mdi:text-box-outline"></ha-icon><span>Release notes</span>
             </a>
-            <a href="https://github.com/haos-ai/haos-ai/issues" target="_blank" rel="noreferrer">
+            <a href="https://github.com/Bronxk/haos-ai/issues" target="_blank" rel="noreferrer">
               <ha-icon icon="mdi:bug-outline"></ha-icon><span>Report a problem</span>
             </a>
           </div>

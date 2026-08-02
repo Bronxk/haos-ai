@@ -34,14 +34,14 @@ usage. You need a separate API key from the provider.
 
 ## Install with HACS
 
-[![Open HAOS AI in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=haos-ai&repository=haos-ai&category=integration)
+[![Open HAOS AI in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Bronxk&repository=haos-ai&category=integration)
 
 Until HAOS AI is listed in the default HACS catalog, the button adds it as a
 custom integration repository. You can also add it manually:
 
 1. Open HACS.
 2. Select the three-dot menu, then **Custom repositories**.
-3. Add `https://github.com/haos-ai/haos-ai` and select **Integration**.
+3. Add `https://github.com/Bronxk/haos-ai` and select **Integration**.
 4. Search for **HAOS AI**, download it, and restart Home Assistant.
 5. Open **Settings → Devices & services → Add integration**.
 6. Search for **HAOS AI**, choose a provider, and enter its API key, model, and
@@ -216,7 +216,7 @@ The production panel is emitted to
 `custom_components/haos_ai/frontend/haos-ai-panel.js` and must be committed in a
 release so users do not need Node.js.
 
-Pushing an annotated or lightweight `v1.0.0` tag runs the full release workflow,
+Pushing an annotated or lightweight `vX.Y.Z` tag runs the full release workflow,
 rebuilds and verifies the committed panel, creates a deterministic archive and
 SHA-256 checksum, and publishes both files to a GitHub release.
 
