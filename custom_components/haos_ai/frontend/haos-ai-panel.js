@@ -1,7 +1,7 @@
-const Fe = globalThis, St = Fe.ShadowRoot && (Fe.ShadyCSS === void 0 || Fe.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, At = /* @__PURE__ */ Symbol(), Yt = /* @__PURE__ */ new WeakMap();
-let gs = class {
+const Fe = globalThis, St = Fe.ShadowRoot && (Fe.ShadyCSS === void 0 || Fe.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, _t = /* @__PURE__ */ Symbol(), Yt = /* @__PURE__ */ new WeakMap();
+let ms = class {
   constructor(e, t, i) {
-    if (this._$cssResult$ = !0, i !== At) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
+    if (this._$cssResult$ = !0, i !== _t) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
     this.cssText = e, this.t = t;
   }
   get styleSheet() {
@@ -17,28 +17,28 @@ let gs = class {
     return this.cssText;
   }
 };
-const ri = (s) => new gs(typeof s == "string" ? s : s + "", void 0, At), oi = (s, ...e) => {
+const oi = (s) => new ms(typeof s == "string" ? s : s + "", void 0, _t), li = (s, ...e) => {
   const t = s.length === 1 ? s[0] : e.reduce((i, n, a) => i + ((r) => {
     if (r._$cssResult$ === !0) return r.cssText;
     if (typeof r == "number") return r;
     throw Error("Value passed to 'css' function must be a 'css' function result: " + r + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
   })(n) + s[a + 1], s[0]);
-  return new gs(t, s, At);
-}, li = (s, e) => {
+  return new ms(t, s, _t);
+}, ci = (s, e) => {
   if (St) s.adoptedStyleSheets = e.map((t) => t instanceof CSSStyleSheet ? t : t.styleSheet);
   else for (const t of e) {
     const i = document.createElement("style"), n = Fe.litNonce;
     n !== void 0 && i.setAttribute("nonce", n), i.textContent = t.cssText, s.appendChild(i);
   }
-}, Gt = St ? (s) => s : (s) => s instanceof CSSStyleSheet ? ((e) => {
+}, Wt = St ? (s) => s : (s) => s instanceof CSSStyleSheet ? ((e) => {
   let t = "";
   for (const i of e.cssRules) t += i.cssText;
-  return ri(t);
+  return oi(t);
 })(s) : s;
-const { is: ci, defineProperty: hi, getOwnPropertyDescriptor: di, getOwnPropertyNames: ui, getOwnPropertySymbols: pi, getPrototypeOf: fi } = Object, et = globalThis, Wt = et.trustedTypes, gi = Wt ? Wt.emptyScript : "", mi = et.reactiveElementPolyfillSupport, _e = (s, e) => s, We = { toAttribute(s, e) {
+const { is: hi, defineProperty: di, getOwnPropertyDescriptor: pi, getOwnPropertyNames: ui, getOwnPropertySymbols: fi, getPrototypeOf: gi } = Object, et = globalThis, Gt = et.trustedTypes, mi = Gt ? Gt.emptyScript : "", yi = et.reactiveElementPolyfillSupport, Ae = (s, e) => s, Ge = { toAttribute(s, e) {
   switch (e) {
     case Boolean:
-      s = s ? gi : null;
+      s = s ? mi : null;
       break;
     case Object:
     case Array:
@@ -63,7 +63,7 @@ const { is: ci, defineProperty: hi, getOwnPropertyDescriptor: di, getOwnProperty
       }
   }
   return t;
-} }, _t = (s, e) => !ci(s, e), Jt = { attribute: !0, type: String, converter: We, reflect: !1, useDefault: !1, hasChanged: _t };
+} }, At = (s, e) => !hi(s, e), Jt = { attribute: !0, type: String, converter: Ge, reflect: !1, useDefault: !1, hasChanged: At };
 Symbol.metadata ??= /* @__PURE__ */ Symbol("metadata"), et.litPropertyMetadata ??= /* @__PURE__ */ new WeakMap();
 let oe = class extends HTMLElement {
   static addInitializer(e) {
@@ -75,11 +75,11 @@ let oe = class extends HTMLElement {
   static createProperty(e, t = Jt) {
     if (t.state && (t.attribute = !1), this._$Ei(), this.prototype.hasOwnProperty(e) && ((t = Object.create(t)).wrapped = !0), this.elementProperties.set(e, t), !t.noAccessor) {
       const i = /* @__PURE__ */ Symbol(), n = this.getPropertyDescriptor(e, i, t);
-      n !== void 0 && hi(this.prototype, e, n);
+      n !== void 0 && di(this.prototype, e, n);
     }
   }
   static getPropertyDescriptor(e, t, i) {
-    const { get: n, set: a } = di(this.prototype, e) ?? { get() {
+    const { get: n, set: a } = pi(this.prototype, e) ?? { get() {
       return this[t];
     }, set(r) {
       this[t] = r;
@@ -93,14 +93,14 @@ let oe = class extends HTMLElement {
     return this.elementProperties.get(e) ?? Jt;
   }
   static _$Ei() {
-    if (this.hasOwnProperty(_e("elementProperties"))) return;
-    const e = fi(this);
+    if (this.hasOwnProperty(Ae("elementProperties"))) return;
+    const e = gi(this);
     e.finalize(), e.l !== void 0 && (this.l = [...e.l]), this.elementProperties = new Map(e.elementProperties);
   }
   static finalize() {
-    if (this.hasOwnProperty(_e("finalized"))) return;
-    if (this.finalized = !0, this._$Ei(), this.hasOwnProperty(_e("properties"))) {
-      const t = this.properties, i = [...ui(t), ...pi(t)];
+    if (this.hasOwnProperty(Ae("finalized"))) return;
+    if (this.finalized = !0, this._$Ei(), this.hasOwnProperty(Ae("properties"))) {
+      const t = this.properties, i = [...ui(t), ...fi(t)];
       for (const n of i) this.createProperty(n, t[n]);
     }
     const e = this[Symbol.metadata];
@@ -119,8 +119,8 @@ let oe = class extends HTMLElement {
     const t = [];
     if (Array.isArray(e)) {
       const i = new Set(e.flat(1 / 0).reverse());
-      for (const n of i) t.unshift(Gt(n));
-    } else e !== void 0 && t.push(Gt(e));
+      for (const n of i) t.unshift(Wt(n));
+    } else e !== void 0 && t.push(Wt(e));
     return t;
   }
   static _$Eu(e, t) {
@@ -146,7 +146,7 @@ let oe = class extends HTMLElement {
   }
   createRenderRoot() {
     const e = this.shadowRoot ?? this.attachShadow(this.constructor.shadowRootOptions);
-    return li(e, this.constructor.elementStyles), e;
+    return ci(e, this.constructor.elementStyles), e;
   }
   connectedCallback() {
     this.renderRoot ??= this.createRenderRoot(), this.enableUpdating(!0), this._$EO?.forEach((e) => e.hostConnected?.());
@@ -162,14 +162,14 @@ let oe = class extends HTMLElement {
   _$ET(e, t) {
     const i = this.constructor.elementProperties.get(e), n = this.constructor._$Eu(e, i);
     if (n !== void 0 && i.reflect === !0) {
-      const a = (i.converter?.toAttribute !== void 0 ? i.converter : We).toAttribute(t, i.type);
+      const a = (i.converter?.toAttribute !== void 0 ? i.converter : Ge).toAttribute(t, i.type);
       this._$Em = e, a == null ? this.removeAttribute(n) : this.setAttribute(n, a), this._$Em = null;
     }
   }
   _$AK(e, t) {
     const i = this.constructor, n = i._$Eh.get(e);
     if (n !== void 0 && this._$Em !== n) {
-      const a = i.getPropertyOptions(n), r = typeof a.converter == "function" ? { fromAttribute: a.converter } : a.converter?.fromAttribute !== void 0 ? a.converter : We;
+      const a = i.getPropertyOptions(n), r = typeof a.converter == "function" ? { fromAttribute: a.converter } : a.converter?.fromAttribute !== void 0 ? a.converter : Ge;
       this._$Em = n;
       const o = r.fromAttribute(t, a.type);
       this[n] = o ?? this._$Ej?.get(n) ?? o, this._$Em = null;
@@ -178,7 +178,7 @@ let oe = class extends HTMLElement {
   requestUpdate(e, t, i, n = !1, a) {
     if (e !== void 0) {
       const r = this.constructor;
-      if (n === !1 && (a = this[e]), i ??= r.getPropertyOptions(e), !((i.hasChanged ?? _t)(a, t) || i.useDefault && i.reflect && a === this._$Ej?.get(e) && !this.hasAttribute(r._$Eu(e, i)))) return;
+      if (n === !1 && (a = this[e]), i ??= r.getPropertyOptions(e), !((i.hasChanged ?? At)(a, t) || i.useDefault && i.reflect && a === this._$Ej?.get(e) && !this.hasAttribute(r._$Eu(e, i)))) return;
       this.C(e, t, i);
     }
     this.isUpdatePending === !1 && (this._$ES = this._$EP());
@@ -246,54 +246,54 @@ let oe = class extends HTMLElement {
   firstUpdated(e) {
   }
 };
-oe.elementStyles = [], oe.shadowRootOptions = { mode: "open" }, oe[_e("elementProperties")] = /* @__PURE__ */ new Map(), oe[_e("finalized")] = /* @__PURE__ */ new Map(), mi?.({ ReactiveElement: oe }), (et.reactiveElementVersions ??= []).push("2.1.2");
-const Et = globalThis, Qt = (s) => s, Je = Et.trustedTypes, Xt = Je ? Je.createPolicy("lit-html", { createHTML: (s) => s }) : void 0, ms = "$lit$", W = `lit$${Math.random().toFixed(9).slice(2)}$`, ys = "?" + W, yi = `<${ys}>`, se = document, Te = () => se.createComment(""), Ie = (s) => s === null || typeof s != "object" && typeof s != "function", Nt = Array.isArray, vi = (s) => Nt(s) || typeof s?.[Symbol.iterator] == "function", dt = `[ 	
+oe.elementStyles = [], oe.shadowRootOptions = { mode: "open" }, oe[Ae("elementProperties")] = /* @__PURE__ */ new Map(), oe[Ae("finalized")] = /* @__PURE__ */ new Map(), yi?.({ ReactiveElement: oe }), (et.reactiveElementVersions ??= []).push("2.1.2");
+const Et = globalThis, Qt = (s) => s, Je = Et.trustedTypes, Xt = Je ? Je.createPolicy("lit-html", { createHTML: (s) => s }) : void 0, ys = "$lit$", G = `lit$${Math.random().toFixed(9).slice(2)}$`, vs = "?" + G, vi = `<${vs}>`, se = document, Te = () => se.createComment(""), Ie = (s) => s === null || typeof s != "object" && typeof s != "function", Nt = Array.isArray, bi = (s) => Nt(s) || typeof s?.[Symbol.iterator] == "function", dt = `[ 	
 \f\r]`, xe = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, Zt = /-->/g, es = />/g, Q = RegExp(`>|${dt}(?:([^\\s"'>=/]+)(${dt}*=${dt}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), ts = /'/g, ss = /"/g, vs = /^(?:script|style|textarea|title)$/i, bi = (s) => (e, ...t) => ({ _$litType$: s, strings: e, values: t }), y = bi(1), pe = /* @__PURE__ */ Symbol.for("lit-noChange"), O = /* @__PURE__ */ Symbol.for("lit-nothing"), is = /* @__PURE__ */ new WeakMap(), Z = se.createTreeWalker(se, 129);
-function bs(s, e) {
+\f\r"'\`<>=]|("|')|))|$)`, "g"), ts = /'/g, ss = /"/g, bs = /^(?:script|style|textarea|title)$/i, wi = (s) => (e, ...t) => ({ _$litType$: s, strings: e, values: t }), y = wi(1), ue = /* @__PURE__ */ Symbol.for("lit-noChange"), O = /* @__PURE__ */ Symbol.for("lit-nothing"), is = /* @__PURE__ */ new WeakMap(), Z = se.createTreeWalker(se, 129);
+function ws(s, e) {
   if (!Nt(s) || !s.hasOwnProperty("raw")) throw Error("invalid template strings array");
   return Xt !== void 0 ? Xt.createHTML(e) : e;
 }
-const wi = (s, e) => {
+const $i = (s, e) => {
   const t = s.length - 1, i = [];
   let n, a = e === 2 ? "<svg>" : e === 3 ? "<math>" : "", r = xe;
   for (let o = 0; o < t; o++) {
     const l = s[o];
-    let c, p, h = -1, d = 0;
-    for (; d < l.length && (r.lastIndex = d, p = r.exec(l), p !== null); ) d = r.lastIndex, r === xe ? p[1] === "!--" ? r = Zt : p[1] !== void 0 ? r = es : p[2] !== void 0 ? (vs.test(p[2]) && (n = RegExp("</" + p[2], "g")), r = Q) : p[3] !== void 0 && (r = Q) : r === Q ? p[0] === ">" ? (r = n ?? xe, h = -1) : p[1] === void 0 ? h = -2 : (h = r.lastIndex - p[2].length, c = p[1], r = p[3] === void 0 ? Q : p[3] === '"' ? ss : ts) : r === ss || r === ts ? r = Q : r === Zt || r === es ? r = xe : (r = Q, n = void 0);
+    let c, u, h = -1, d = 0;
+    for (; d < l.length && (r.lastIndex = d, u = r.exec(l), u !== null); ) d = r.lastIndex, r === xe ? u[1] === "!--" ? r = Zt : u[1] !== void 0 ? r = es : u[2] !== void 0 ? (bs.test(u[2]) && (n = RegExp("</" + u[2], "g")), r = Q) : u[3] !== void 0 && (r = Q) : r === Q ? u[0] === ">" ? (r = n ?? xe, h = -1) : u[1] === void 0 ? h = -2 : (h = r.lastIndex - u[2].length, c = u[1], r = u[3] === void 0 ? Q : u[3] === '"' ? ss : ts) : r === ss || r === ts ? r = Q : r === Zt || r === es ? r = xe : (r = Q, n = void 0);
     const f = r === Q && s[o + 1].startsWith("/>") ? " " : "";
-    a += r === xe ? l + yi : h >= 0 ? (i.push(c), l.slice(0, h) + ms + l.slice(h) + W + f) : l + W + (h === -2 ? o : f);
+    a += r === xe ? l + vi : h >= 0 ? (i.push(c), l.slice(0, h) + ys + l.slice(h) + G + f) : l + G + (h === -2 ? o : f);
   }
-  return [bs(s, a + (s[t] || "<?>") + (e === 2 ? "</svg>" : e === 3 ? "</math>" : "")), i];
+  return [ws(s, a + (s[t] || "<?>") + (e === 2 ? "</svg>" : e === 3 ? "</math>" : "")), i];
 };
 class Ce {
   constructor({ strings: e, _$litType$: t }, i) {
     let n;
     this.parts = [];
     let a = 0, r = 0;
-    const o = e.length - 1, l = this.parts, [c, p] = wi(e, t);
+    const o = e.length - 1, l = this.parts, [c, u] = $i(e, t);
     if (this.el = Ce.createElement(c, i), Z.currentNode = this.el.content, t === 2 || t === 3) {
       const h = this.el.content.firstChild;
       h.replaceWith(...h.childNodes);
     }
     for (; (n = Z.nextNode()) !== null && l.length < o; ) {
       if (n.nodeType === 1) {
-        if (n.hasAttributes()) for (const h of n.getAttributeNames()) if (h.endsWith(ms)) {
-          const d = p[r++], f = n.getAttribute(h).split(W), m = /([.?@])?(.*)/.exec(d);
-          l.push({ type: 1, index: a, name: m[2], strings: f, ctor: m[1] === "." ? xi : m[1] === "?" ? ki : m[1] === "@" ? Si : tt }), n.removeAttribute(h);
-        } else h.startsWith(W) && (l.push({ type: 6, index: a }), n.removeAttribute(h));
-        if (vs.test(n.tagName)) {
-          const h = n.textContent.split(W), d = h.length - 1;
+        if (n.hasAttributes()) for (const h of n.getAttributeNames()) if (h.endsWith(ys)) {
+          const d = u[r++], f = n.getAttribute(h).split(G), m = /([.?@])?(.*)/.exec(d);
+          l.push({ type: 1, index: a, name: m[2], strings: f, ctor: m[1] === "." ? ki : m[1] === "?" ? Si : m[1] === "@" ? _i : tt }), n.removeAttribute(h);
+        } else h.startsWith(G) && (l.push({ type: 6, index: a }), n.removeAttribute(h));
+        if (bs.test(n.tagName)) {
+          const h = n.textContent.split(G), d = h.length - 1;
           if (d > 0) {
             n.textContent = Je ? Je.emptyScript : "";
             for (let f = 0; f < d; f++) n.append(h[f], Te()), Z.nextNode(), l.push({ type: 2, index: ++a });
             n.append(h[d], Te());
           }
         }
-      } else if (n.nodeType === 8) if (n.data === ys) l.push({ type: 2, index: a });
+      } else if (n.nodeType === 8) if (n.data === vs) l.push({ type: 2, index: a });
       else {
         let h = -1;
-        for (; (h = n.data.indexOf(W, h + 1)) !== -1; ) l.push({ type: 7, index: a }), h += W.length - 1;
+        for (; (h = n.data.indexOf(G, h + 1)) !== -1; ) l.push({ type: 7, index: a }), h += G.length - 1;
       }
       a++;
     }
@@ -304,12 +304,12 @@ class Ce {
   }
 }
 function fe(s, e, t = s, i) {
-  if (e === pe) return e;
+  if (e === ue) return e;
   let n = i !== void 0 ? t._$Co?.[i] : t._$Cl;
   const a = Ie(e) ? void 0 : e._$litDirective$;
   return n?.constructor !== a && (n?._$AO?.(!1), a === void 0 ? n = void 0 : (n = new a(s), n._$AT(s, t, i)), i !== void 0 ? (t._$Co ??= [])[i] = n : t._$Cl = n), n !== void 0 && (e = fe(s, n._$AS(s, e.values), n, i)), e;
 }
-class $i {
+class xi {
   constructor(e, t) {
     this._$AV = [], this._$AN = void 0, this._$AD = e, this._$AM = t;
   }
@@ -326,7 +326,7 @@ class $i {
     for (; l !== void 0; ) {
       if (r === l.index) {
         let c;
-        l.type === 2 ? c = new Pe(a, a.nextSibling, this, e) : l.type === 1 ? c = new l.ctor(a, l.name, l.strings, this, e) : l.type === 6 && (c = new Ai(a, this, e)), this._$AV.push(c), l = i[++o];
+        l.type === 2 ? c = new De(a, a.nextSibling, this, e) : l.type === 1 ? c = new l.ctor(a, l.name, l.strings, this, e) : l.type === 6 && (c = new Ai(a, this, e)), this._$AV.push(c), l = i[++o];
       }
       r !== l?.index && (a = Z.nextNode(), r++);
     }
@@ -337,7 +337,7 @@ class $i {
     for (const i of this._$AV) i !== void 0 && (i.strings !== void 0 ? (i._$AI(e, i, t), t += i.strings.length - 2) : i._$AI(e[t])), t++;
   }
 }
-class Pe {
+class De {
   get _$AU() {
     return this._$AM?._$AU ?? this._$Cv;
   }
@@ -356,7 +356,7 @@ class Pe {
     return this._$AB;
   }
   _$AI(e, t = this) {
-    e = fe(this, e, t), Ie(e) ? e === O || e == null || e === "" ? (this._$AH !== O && this._$AR(), this._$AH = O) : e !== this._$AH && e !== pe && this._(e) : e._$litType$ !== void 0 ? this.$(e) : e.nodeType !== void 0 ? this.T(e) : vi(e) ? this.k(e) : this._(e);
+    e = fe(this, e, t), Ie(e) ? e === O || e == null || e === "" ? (this._$AH !== O && this._$AR(), this._$AH = O) : e !== this._$AH && e !== ue && this._(e) : e._$litType$ !== void 0 ? this.$(e) : e.nodeType !== void 0 ? this.T(e) : bi(e) ? this.k(e) : this._(e);
   }
   O(e) {
     return this._$AA.parentNode.insertBefore(e, this._$AB);
@@ -368,10 +368,10 @@ class Pe {
     this._$AH !== O && Ie(this._$AH) ? this._$AA.nextSibling.data = e : this.T(se.createTextNode(e)), this._$AH = e;
   }
   $(e) {
-    const { values: t, _$litType$: i } = e, n = typeof i == "number" ? this._$AC(e) : (i.el === void 0 && (i.el = Ce.createElement(bs(i.h, i.h[0]), this.options)), i);
+    const { values: t, _$litType$: i } = e, n = typeof i == "number" ? this._$AC(e) : (i.el === void 0 && (i.el = Ce.createElement(ws(i.h, i.h[0]), this.options)), i);
     if (this._$AH?._$AD === n) this._$AH.p(t);
     else {
-      const a = new $i(n, this), r = a.u(this.options);
+      const a = new xi(n, this), r = a.u(this.options);
       a.p(t), this.T(r), this._$AH = a;
     }
   }
@@ -383,7 +383,7 @@ class Pe {
     Nt(this._$AH) || (this._$AH = [], this._$AR());
     const t = this._$AH;
     let i, n = 0;
-    for (const a of e) n === t.length ? t.push(i = new Pe(this.O(Te()), this.O(Te()), this, this.options)) : i = t[n], i._$AI(a), n++;
+    for (const a of e) n === t.length ? t.push(i = new De(this.O(Te()), this.O(Te()), this, this.options)) : i = t[n], i._$AI(a), n++;
     n < t.length && (this._$AR(i && i._$AB.nextSibling, n), t.length = n);
   }
   _$AR(e = this._$AA.nextSibling, t) {
@@ -409,11 +409,11 @@ class tt {
   _$AI(e, t = this, i, n) {
     const a = this.strings;
     let r = !1;
-    if (a === void 0) e = fe(this, e, t, 0), r = !Ie(e) || e !== this._$AH && e !== pe, r && (this._$AH = e);
+    if (a === void 0) e = fe(this, e, t, 0), r = !Ie(e) || e !== this._$AH && e !== ue, r && (this._$AH = e);
     else {
       const o = e;
       let l, c;
-      for (e = a[0], l = 0; l < a.length - 1; l++) c = fe(this, o[i + l], t, l), c === pe && (c = this._$AH[l]), r ||= !Ie(c) || c !== this._$AH[l], c === O ? e = O : e !== O && (e += (c ?? "") + a[l + 1]), this._$AH[l] = c;
+      for (e = a[0], l = 0; l < a.length - 1; l++) c = fe(this, o[i + l], t, l), c === ue && (c = this._$AH[l]), r ||= !Ie(c) || c !== this._$AH[l], c === O ? e = O : e !== O && (e += (c ?? "") + a[l + 1]), this._$AH[l] = c;
     }
     r && !n && this.j(e);
   }
@@ -421,7 +421,7 @@ class tt {
     e === O ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, e ?? "");
   }
 }
-class xi extends tt {
+class ki extends tt {
   constructor() {
     super(...arguments), this.type = 3;
   }
@@ -429,7 +429,7 @@ class xi extends tt {
     this.element[this.name] = e === O ? void 0 : e;
   }
 }
-class ki extends tt {
+class Si extends tt {
   constructor() {
     super(...arguments), this.type = 4;
   }
@@ -437,12 +437,12 @@ class ki extends tt {
     this.element.toggleAttribute(this.name, !!e && e !== O);
   }
 }
-class Si extends tt {
+class _i extends tt {
   constructor(e, t, i, n, a) {
     super(e, t, i, n, a), this.type = 5;
   }
   _$AI(e, t = this) {
-    if ((e = fe(this, e, t, 0) ?? O) === pe) return;
+    if ((e = fe(this, e, t, 0) ?? O) === ue) return;
     const i = this._$AH, n = e === O && i !== O || e.capture !== i.capture || e.once !== i.once || e.passive !== i.passive, a = e !== O && (i === O || n);
     n && this.element.removeEventListener(this.name, this, i), a && this.element.addEventListener(this.name, this, e), this._$AH = e;
   }
@@ -461,14 +461,14 @@ class Ai {
     fe(this, e);
   }
 }
-const _i = Et.litHtmlPolyfillSupport;
-_i?.(Ce, Pe), (Et.litHtmlVersions ??= []).push("3.3.3");
-const Ei = (s, e, t) => {
+const Ei = Et.litHtmlPolyfillSupport;
+Ei?.(Ce, De), (Et.litHtmlVersions ??= []).push("3.3.3");
+const Ni = (s, e, t) => {
   const i = t?.renderBefore ?? e;
   let n = i._$litPart$;
   if (n === void 0) {
     const a = t?.renderBefore ?? null;
-    i._$litPart$ = n = new Pe(e.insertBefore(Te(), a), a, void 0, t ?? {});
+    i._$litPart$ = n = new De(e.insertBefore(Te(), a), a, void 0, t ?? {});
   }
   return n._$AI(s), n;
 };
@@ -483,7 +483,7 @@ class Ee extends oe {
   }
   update(e) {
     const t = this.render();
-    this.hasUpdated || (this.renderOptions.isConnected = this.isConnected), super.update(e), this._$Do = Ei(t, this.renderRoot, this.renderOptions);
+    this.hasUpdated || (this.renderOptions.isConnected = this.isConnected), super.update(e), this._$Do = Ni(t, this.renderRoot, this.renderOptions);
   }
   connectedCallback() {
     super.connectedCallback(), this._$Do?.setConnected(!0);
@@ -492,19 +492,19 @@ class Ee extends oe {
     super.disconnectedCallback(), this._$Do?.setConnected(!1);
   }
   render() {
-    return pe;
+    return ue;
   }
 }
 Ee._$litElement$ = !0, Ee.finalized = !0, Ot.litElementHydrateSupport?.({ LitElement: Ee });
-const Ni = Ot.litElementPolyfillSupport;
-Ni?.({ LitElement: Ee });
+const Oi = Ot.litElementPolyfillSupport;
+Oi?.({ LitElement: Ee });
 (Ot.litElementVersions ??= []).push("4.2.2");
-const Oi = (s) => (e, t) => {
+const Ti = (s) => (e, t) => {
   t !== void 0 ? t.addInitializer(() => {
     customElements.define(s, e);
   }) : customElements.define(s, e);
 };
-const Ti = { attribute: !0, type: String, converter: We, reflect: !1, hasChanged: _t }, Ii = (s = Ti, e, t) => {
+const Ii = { attribute: !0, type: String, converter: Ge, reflect: !1, hasChanged: At }, Ci = (s = Ii, e, t) => {
   const { kind: i, metadata: n } = t;
   let a = globalThis.litPropertyMetadata.get(n);
   if (a === void 0 && globalThis.litPropertyMetadata.set(n, a = /* @__PURE__ */ new Map()), i === "setter" && ((s = Object.create(s)).wrapped = !0), a.set(t.name, s), i === "accessor") {
@@ -526,15 +526,15 @@ const Ti = { attribute: !0, type: String, converter: We, reflect: !1, hasChanged
   throw Error("Unsupported decorator location: " + i);
 };
 function Tt(s) {
-  return (e, t) => typeof t == "object" ? Ii(s, e, t) : ((i, n, a) => {
+  return (e, t) => typeof t == "object" ? Ci(s, e, t) : ((i, n, a) => {
     const r = n.hasOwnProperty(a);
     return n.constructor.createProperty(a, i), r ? Object.getOwnPropertyDescriptor(n, a) : void 0;
   })(s, e, t);
 }
-function S(s) {
+function k(s) {
   return Tt({ ...s, state: !0, attribute: !1 });
 }
-const It = /* @__PURE__ */ Symbol.for("yaml.alias"), vt = /* @__PURE__ */ Symbol.for("yaml.document"), J = /* @__PURE__ */ Symbol.for("yaml.map"), ws = /* @__PURE__ */ Symbol.for("yaml.pair"), H = /* @__PURE__ */ Symbol.for("yaml.scalar"), ye = /* @__PURE__ */ Symbol.for("yaml.seq"), K = /* @__PURE__ */ Symbol.for("yaml.node.type"), ve = (s) => !!s && typeof s == "object" && s[K] === It, st = (s) => !!s && typeof s == "object" && s[K] === vt, Me = (s) => !!s && typeof s == "object" && s[K] === J, D = (s) => !!s && typeof s == "object" && s[K] === ws, I = (s) => !!s && typeof s == "object" && s[K] === H, Re = (s) => !!s && typeof s == "object" && s[K] === ye;
+const It = /* @__PURE__ */ Symbol.for("yaml.alias"), vt = /* @__PURE__ */ Symbol.for("yaml.document"), J = /* @__PURE__ */ Symbol.for("yaml.map"), $s = /* @__PURE__ */ Symbol.for("yaml.pair"), H = /* @__PURE__ */ Symbol.for("yaml.scalar"), ye = /* @__PURE__ */ Symbol.for("yaml.seq"), K = /* @__PURE__ */ Symbol.for("yaml.node.type"), ve = (s) => !!s && typeof s == "object" && s[K] === It, st = (s) => !!s && typeof s == "object" && s[K] === vt, Me = (s) => !!s && typeof s == "object" && s[K] === J, P = (s) => !!s && typeof s == "object" && s[K] === $s, I = (s) => !!s && typeof s == "object" && s[K] === H, Re = (s) => !!s && typeof s == "object" && s[K] === ye;
 function C(s) {
   if (s && typeof s == "object")
     switch (s[K]) {
@@ -555,18 +555,18 @@ function L(s) {
     }
   return !1;
 }
-const $s = (s) => (I(s) || C(s)) && !!s.anchor, X = /* @__PURE__ */ Symbol("break visit"), Ci = /* @__PURE__ */ Symbol("skip children"), Ne = /* @__PURE__ */ Symbol("remove node");
+const xs = (s) => (I(s) || C(s)) && !!s.anchor, X = /* @__PURE__ */ Symbol("break visit"), Li = /* @__PURE__ */ Symbol("skip children"), Ne = /* @__PURE__ */ Symbol("remove node");
 function be(s, e) {
-  const t = Li(e);
+  const t = Pi(e);
   st(s) ? le(null, s.contents, t, Object.freeze([s])) === Ne && (s.contents = null) : le(null, s, t, Object.freeze([]));
 }
 be.BREAK = X;
-be.SKIP = Ci;
+be.SKIP = Li;
 be.REMOVE = Ne;
 function le(s, e, t, i) {
   const n = Di(s, e, t, i);
-  if (L(n) || D(n))
-    return Pi(s, i, n), le(s, n, t, i);
+  if (L(n) || P(n))
+    return Mi(s, i, n), le(s, n, t, i);
   if (typeof n != "symbol") {
     if (C(e)) {
       i = Object.freeze(i.concat(e));
@@ -580,7 +580,7 @@ function le(s, e, t, i) {
           r === Ne && (e.items.splice(a, 1), a -= 1);
         }
       }
-    } else if (D(e)) {
+    } else if (P(e)) {
       i = Object.freeze(i.concat(e));
       const a = le("key", e.key, t, i);
       if (a === X)
@@ -594,7 +594,7 @@ function le(s, e, t, i) {
   }
   return n;
 }
-function Li(s) {
+function Pi(s) {
   return typeof s == "object" && (s.Collection || s.Node || s.Value) ? Object.assign({
     Alias: s.Node,
     Map: s.Node,
@@ -616,18 +616,18 @@ function Di(s, e, t, i) {
     return t.Map?.(s, e, i);
   if (Re(e))
     return t.Seq?.(s, e, i);
-  if (D(e))
+  if (P(e))
     return t.Pair?.(s, e, i);
   if (I(e))
     return t.Scalar?.(s, e, i);
   if (ve(e))
     return t.Alias?.(s, e, i);
 }
-function Pi(s, e, t) {
+function Mi(s, e, t) {
   const i = e[e.length - 1];
   if (C(i))
     i.items[s] = t;
-  else if (D(i))
+  else if (P(i))
     s === "key" ? i.key = t : i.value = t;
   else if (st(i))
     i.contents = t;
@@ -636,14 +636,14 @@ function Pi(s, e, t) {
     throw new Error(`Cannot replace node with ${n} parent`);
   }
 }
-const Mi = {
+const Ri = {
   "!": "%21",
   ",": "%2C",
   "[": "%5B",
   "]": "%5D",
   "{": "%7B",
   "}": "%7D"
-}, Ri = (s) => s.replace(/[!,[\]{}]/g, (e) => Mi[e]);
+}, ji = (s) => s.replace(/[!,[\]{}]/g, (e) => Ri[e]);
 class R {
   constructor(e, t) {
     this.docStart = null, this.docEnd = !1, this.yaml = Object.assign({}, R.defaultYaml, e), this.tags = Object.assign({}, R.defaultTags, t);
@@ -733,7 +733,7 @@ class R {
   tagString(e) {
     for (const [t, i] of Object.entries(this.tags))
       if (e.startsWith(i))
-        return t + Ri(e.substring(i.length));
+        return t + ji(e.substring(i.length));
     return e[0] === "!" ? e : `!<${e}>`;
   }
   toString(e) {
@@ -754,14 +754,14 @@ class R {
 }
 R.defaultYaml = { explicit: !1, version: "1.2" };
 R.defaultTags = { "!!": "tag:yaml.org,2002:" };
-function xs(s) {
+function ks(s) {
   if (/[\x00-\x19\s,[\]{}]/.test(s)) {
     const t = `Anchor must not contain whitespace or control characters: ${JSON.stringify(s)}`;
     throw new Error(t);
   }
   return !0;
 }
-function ks(s) {
+function Ss(s) {
   const e = /* @__PURE__ */ new Set();
   return be(s, {
     Value(t, i) {
@@ -769,7 +769,7 @@ function ks(s) {
     }
   }), e;
 }
-function Ss(s, e) {
+function _s(s, e) {
   for (let t = 1; ; ++t) {
     const i = `${s}${t}`;
     if (!e.has(i))
@@ -781,8 +781,8 @@ function Bi(s, e) {
   let n = null;
   return {
     onAnchor: (a) => {
-      t.push(a), n ?? (n = ks(s));
-      const r = Ss(e, n);
+      t.push(a), n ?? (n = Ss(s));
+      const r = _s(e, n);
       return n.add(r), r;
     },
     /**
@@ -832,7 +832,7 @@ function U(s, e, t) {
   if (Array.isArray(s))
     return s.map((i, n) => U(i, String(n), t));
   if (s && typeof s.toJSON == "function") {
-    if (!t || !$s(s))
+    if (!t || !xs(s))
       return s.toJSON(e, t);
     const i = { aliasCount: 0, count: 1, res: void 0 };
     t.anchors.set(s, i), t.onCreate = (a) => {
@@ -888,7 +888,7 @@ class Lt extends Ct {
     let i;
     t?.aliasResolveCache ? i = t.aliasResolveCache : (i = [], be(e, {
       Node: (a, r) => {
-        (ve(r) || $s(r)) && i.push(r);
+        (ve(r) || xs(r)) && i.push(r);
       }
     }), t && (t.aliasResolveCache = i));
     let n;
@@ -921,7 +921,7 @@ class Lt extends Ct {
   toString(e, t, i) {
     const n = `*${this.source}`;
     if (e) {
-      if (xs(this.source), e.options.verifyAliasOrder && !e.anchors.has(this.source)) {
+      if (ks(this.source), e.options.verifyAliasOrder && !e.anchors.has(this.source)) {
         const a = `Unresolved alias (the anchor must be set before the alias): ${this.source}`;
         throw new Error(a);
       }
@@ -942,7 +942,7 @@ function Ve(s, e, t) {
       a > i && (i = a);
     }
     return i;
-  } else if (D(e)) {
+  } else if (P(e)) {
     const i = Ve(s, e.key, t), n = Ve(s, e.value, t);
     return Math.max(i, n);
   }
@@ -965,8 +965,8 @@ E.BLOCK_LITERAL = "BLOCK_LITERAL";
 E.PLAIN = "PLAIN";
 E.QUOTE_DOUBLE = "QUOTE_DOUBLE";
 E.QUOTE_SINGLE = "QUOTE_SINGLE";
-const ji = "tag:yaml.org,2002:";
-function Ui(s, e, t) {
+const Ui = "tag:yaml.org,2002:";
+function Ki(s, e, t) {
   if (e) {
     const i = t.filter((a) => a.tag === e), n = i.find((a) => !a.format) ?? i[0];
     if (!n)
@@ -978,7 +978,7 @@ function Ui(s, e, t) {
 function Le(s, e, t) {
   if (st(s) && (s = s.contents), L(s))
     return s;
-  if (D(s)) {
+  if (P(s)) {
     const h = t.schema[J].createNode?.(t.schema, null, t);
     return h.items.push(s), h;
   }
@@ -990,8 +990,8 @@ function Le(s, e, t) {
       return l.anchor ?? (l.anchor = n(s)), new Lt(l.anchor);
     l = { anchor: null, node: null }, o.set(s, l);
   }
-  e?.startsWith("!!") && (e = ji + e.slice(2));
-  let c = Ui(s, e, r.tags);
+  e?.startsWith("!!") && (e = Ui + e.slice(2));
+  let c = Ki(s, e, r.tags);
   if (!c) {
     if (s && typeof s.toJSON == "function" && (s = s.toJSON()), !s || typeof s != "object") {
       const h = new E(s);
@@ -1000,8 +1000,8 @@ function Le(s, e, t) {
     c = s instanceof Map ? r[J] : Symbol.iterator in Object(s) ? r[ye] : r[J];
   }
   a && (a(c), delete t.onTagObj);
-  const p = c?.createNode ? c.createNode(t.schema, s, t) : typeof c?.nodeClass?.from == "function" ? c.nodeClass.from(t.schema, s, t) : new E(s);
-  return e ? p.tag = e : c.default || (p.tag = c.tag), l && (l.node = p), p;
+  const u = c?.createNode ? c.createNode(t.schema, s, t) : typeof c?.nodeClass?.from == "function" ? c.nodeClass.from(t.schema, s, t) : new E(s);
+  return e ? u.tag = e : c.default || (u.tag = c.tag), l && (l.node = u), u;
 }
 function Qe(s, e, t) {
   let i = t;
@@ -1024,7 +1024,7 @@ function Qe(s, e, t) {
   });
 }
 const Se = (s) => s == null || typeof s == "object" && !!s[Symbol.iterator]().next().done;
-class _s extends Ct {
+class Es extends Ct {
   constructor(e, t) {
     super(e), Object.defineProperty(this, "schema", {
       value: t,
@@ -1040,7 +1040,7 @@ class _s extends Ct {
    */
   clone(e) {
     const t = Object.create(Object.getPrototypeOf(this), Object.getOwnPropertyDescriptors(this));
-    return e && (t.schema = e), t.items = t.items.map((i) => L(i) || D(i) ? i.clone(e) : i), this.range && (t.range = this.range.slice()), t;
+    return e && (t.schema = e), t.items = t.items.map((i) => L(i) || P(i) ? i.clone(e) : i), this.range && (t.range = this.range.slice()), t;
   }
   /**
    * Adds a value to the collection. For `!!map` and `!!omap` the value must
@@ -1084,7 +1084,7 @@ class _s extends Ct {
   }
   hasAllNullValues(e) {
     return this.items.every((t) => {
-      if (!D(t))
+      if (!P(t))
         return !1;
       const i = t.value;
       return i == null || e && I(i) && i.value == null && !i.commentBefore && !i.comment && !i.tag;
@@ -1119,14 +1119,14 @@ class _s extends Ct {
     }
   }
 }
-const Ki = (s) => s.replace(/^(?!$)(?: $)?/gm, "#");
+const qi = (s) => s.replace(/^(?!$)(?: $)?/gm, "#");
 function F(s, e) {
   return /^\n+$/.test(s) ? s.substring(1) : e ? s.replace(/^(?! *$)/gm, e) : s;
 }
 const ee = (s, e, t) => s.endsWith(`
 `) ? F(t, e) : t.includes(`
 `) ? `
-` + F(t, e) : (s.endsWith(" ") ? "" : " ") + t, Es = "flow", bt = "block", Ye = "quoted";
+` + F(t, e) : (s.endsWith(" ") ? "" : " ") + t, Ns = "flow", bt = "block", Ye = "quoted";
 function it(s, e, t = "flow", { indentAtStart: i, lineWidth: n = 80, minContentWidth: a = 20, onFold: r, onOverflow: o } = {}) {
   if (!n || n < 0)
     return s;
@@ -1134,62 +1134,62 @@ function it(s, e, t = "flow", { indentAtStart: i, lineWidth: n = 80, minContentW
   const l = Math.max(1 + a, 1 + n - e.length);
   if (s.length <= l)
     return s;
-  const c = [], p = {};
+  const c = [], u = {};
   let h = n - e.length;
   typeof i == "number" && (i > n - Math.max(2, a) ? c.push(0) : h = n - i);
-  let d, f, m = !1, u = -1, g = -1, b = -1;
-  t === bt && (u = ns(s, u, e.length), u !== -1 && (h = u + l));
-  for (let k; k = s[u += 1]; ) {
-    if (t === Ye && k === "\\") {
-      switch (g = u, s[u + 1]) {
+  let d, f, m = !1, p = -1, g = -1, b = -1;
+  t === bt && (p = ns(s, p, e.length), p !== -1 && (h = p + l));
+  for (let S; S = s[p += 1]; ) {
+    if (t === Ye && S === "\\") {
+      switch (g = p, s[p + 1]) {
         case "x":
-          u += 3;
+          p += 3;
           break;
         case "u":
-          u += 5;
+          p += 5;
           break;
         case "U":
-          u += 9;
+          p += 9;
           break;
         default:
-          u += 1;
+          p += 1;
       }
-      b = u;
+      b = p;
     }
-    if (k === `
+    if (S === `
 `)
-      t === bt && (u = ns(s, u, e.length)), h = u + e.length + l, d = void 0;
+      t === bt && (p = ns(s, p, e.length)), h = p + e.length + l, d = void 0;
     else {
-      if (k === " " && f && f !== " " && f !== `
+      if (S === " " && f && f !== " " && f !== `
 ` && f !== "	") {
-        const A = s[u + 1];
-        A && A !== " " && A !== `
-` && A !== "	" && (d = u);
+        const _ = s[p + 1];
+        _ && _ !== " " && _ !== `
+` && _ !== "	" && (d = p);
       }
-      if (u >= h)
+      if (p >= h)
         if (d)
           c.push(d), h = d + l, d = void 0;
         else if (t === Ye) {
           for (; f === " " || f === "	"; )
-            f = k, k = s[u += 1], m = !0;
-          const A = u > b + 1 ? u - 2 : g - 1;
-          if (p[A])
+            f = S, S = s[p += 1], m = !0;
+          const _ = p > b + 1 ? p - 2 : g - 1;
+          if (u[_])
             return s;
-          c.push(A), p[A] = !0, h = A + l, d = void 0;
+          c.push(_), u[_] = !0, h = _ + l, d = void 0;
         } else
           m = !0;
     }
-    f = k;
+    f = S;
   }
   if (m && o && o(), c.length === 0)
     return s;
   r && r();
   let w = s.slice(0, c[0]);
-  for (let k = 0; k < c.length; ++k) {
-    const A = c[k], _ = c[k + 1] || s.length;
-    A === 0 ? w = `
-${e}${s.slice(0, _)}` : (t === Ye && p[A] && (w += `${s[A]}\\`), w += `
-${e}${s.slice(A + 1, _)}`);
+  for (let S = 0; S < c.length; ++S) {
+    const _ = c[S], A = c[S + 1] || s.length;
+    _ === 0 ? w = `
+${e}${s.slice(0, A)}` : (t === Ye && u[_] && (w += `${s[_]}\\`), w += `
+${e}${s.slice(_ + 1, A)}`);
   }
   return w;
 }
@@ -1212,7 +1212,7 @@ const nt = (s, e) => ({
   lineWidth: s.options.lineWidth,
   minContentWidth: s.options.minContentWidth
 }), at = (s) => /^(%|---|\.\.\.)/m.test(s);
-function qi(s, e, t) {
+function zi(s, e, t) {
   if (!e || e < 0)
     return !1;
   const i = e - t, n = s.length;
@@ -1240,8 +1240,8 @@ function Oe(s, e) {
         case "u":
           {
             r += t.slice(o, l);
-            const p = t.substr(l + 2, 4);
-            switch (p) {
+            const u = t.substr(l + 2, 4);
+            switch (u) {
               case "0000":
                 r += "\\0";
                 break;
@@ -1267,7 +1267,7 @@ function Oe(s, e) {
                 r += "\\P";
                 break;
               default:
-                p.substr(0, 2) === "00" ? r += "\\x" + p.substr(2) : r += t.substr(l, 6);
+                u.substr(0, 2) === "00" ? r += "\\x" + u.substr(2) : r += t.substr(l, 6);
             }
             l += 5, o = l + 1;
           }
@@ -1295,7 +1295,7 @@ function wt(s, e) {
     return Oe(s, e);
   const t = e.indent || (at(s) ? "  " : ""), i = "'" + s.replace(/'/g, "''").replace(/\n+/g, `$&
 ${t}`) + "'";
-  return e.implicitKey ? i : it(i, t, Es, nt(e, !1));
+  return e.implicitKey ? i : it(i, t, Ns, nt(e, !1));
 }
 function he(s, e) {
   const { singleQuote: t } = e.options;
@@ -1317,20 +1317,20 @@ try {
 } catch {
   $t = /\n+(?!\n|$)/g;
 }
-function Ge({ comment: s, type: e, value: t }, i, n, a) {
+function We({ comment: s, type: e, value: t }, i, n, a) {
   const { blockQuote: r, commentString: o, lineWidth: l } = i.options;
   if (!r || /\n[\t ]+$/.test(t))
     return he(t, i);
-  const c = i.indent || (i.forceBlockIndent || at(t) ? "  " : ""), p = r === "literal" ? !0 : r === "folded" || e === E.BLOCK_FOLDED ? !1 : e === E.BLOCK_LITERAL ? !0 : !qi(t, l, c.length);
+  const c = i.indent || (i.forceBlockIndent || at(t) ? "  " : ""), u = r === "literal" ? !0 : r === "folded" || e === E.BLOCK_FOLDED ? !1 : e === E.BLOCK_LITERAL ? !0 : !zi(t, l, c.length);
   if (!t)
-    return p ? `|
+    return u ? `|
 ` : `>
 `;
   let h, d;
   for (d = t.length; d > 0; --d) {
-    const _ = t[d - 1];
-    if (_ !== `
-` && _ !== "	" && _ !== " ")
+    const A = t[d - 1];
+    if (A !== `
+` && A !== "	" && A !== " ")
       break;
   }
   let f = t.substring(d);
@@ -1338,12 +1338,12 @@ function Ge({ comment: s, type: e, value: t }, i, n, a) {
 `);
   m === -1 ? h = "-" : t === f || m !== f.length - 1 ? (h = "+", a && a()) : h = "", f && (t = t.slice(0, -f.length), f[f.length - 1] === `
 ` && (f = f.slice(0, -1)), f = f.replace($t, `$&${c}`));
-  let u = !1, g, b = -1;
+  let p = !1, g, b = -1;
   for (g = 0; g < t.length; ++g) {
-    const _ = t[g];
-    if (_ === " ")
-      u = !0;
-    else if (_ === `
+    const A = t[g];
+    if (A === " ")
+      p = !0;
+    else if (A === `
 `)
       b = g;
     else
@@ -1351,80 +1351,80 @@ function Ge({ comment: s, type: e, value: t }, i, n, a) {
   }
   let w = t.substring(0, b < g ? b + 1 : g);
   w && (t = t.substring(w.length), w = w.replace(/\n+/g, `$&${c}`));
-  let A = (u ? c ? "2" : "1" : "") + h;
-  if (s && (A += " " + o(s.replace(/ ?[\r\n]+/g, " ")), n && n()), !p) {
-    const _ = t.replace(/\n+/g, `
+  let _ = (p ? c ? "2" : "1" : "") + h;
+  if (s && (_ += " " + o(s.replace(/ ?[\r\n]+/g, " ")), n && n()), !u) {
+    const A = t.replace(/\n+/g, `
 $&`).replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g, "$1$2").replace(/\n+/g, `$&${c}`);
     let N = !1;
     const T = nt(i, !0);
     r !== "folded" && e !== E.BLOCK_FOLDED && (T.onOverflow = () => {
       N = !0;
     });
-    const v = it(`${w}${_}${f}`, c, bt, T);
+    const v = it(`${w}${A}${f}`, c, bt, T);
     if (!N)
-      return `>${A}
+      return `>${_}
 ${c}${v}`;
   }
-  return t = t.replace(/\n+/g, `$&${c}`), `|${A}
+  return t = t.replace(/\n+/g, `$&${c}`), `|${_}
 ${c}${w}${t}${f}`;
 }
-function zi(s, e, t, i) {
-  const { type: n, value: a } = s, { actualString: r, implicitKey: o, indent: l, indentStep: c, inFlow: p } = e;
+function Hi(s, e, t, i) {
+  const { type: n, value: a } = s, { actualString: r, implicitKey: o, indent: l, indentStep: c, inFlow: u } = e;
   if (o && a.includes(`
-`) || p && /[[\]{},]/.test(a))
+`) || u && /[[\]{},]/.test(a))
     return he(a, e);
   if (/^[\n\t ,[\]{}#&*!|>'"%@`]|^[?-]$|^[?-][ \t]|[\n:][ \t]|[ \t]\n|[\n\t ]#|[\n\t :]$/.test(a))
-    return o || p || !a.includes(`
-`) ? he(a, e) : Ge(s, e, t, i);
-  if (!o && !p && n !== E.PLAIN && a.includes(`
+    return o || u || !a.includes(`
+`) ? he(a, e) : We(s, e, t, i);
+  if (!o && !u && n !== E.PLAIN && a.includes(`
 `))
-    return Ge(s, e, t, i);
+    return We(s, e, t, i);
   if (at(a)) {
     if (l === "")
-      return e.forceBlockIndent = !0, Ge(s, e, t, i);
+      return e.forceBlockIndent = !0, We(s, e, t, i);
     if (o && l === c)
       return he(a, e);
   }
   const h = a.replace(/\n+/g, `$&
 ${l}`);
   if (r) {
-    const d = (u) => u.default && u.tag !== "tag:yaml.org,2002:str" && u.test?.test(h), { compat: f, tags: m } = e.doc.schema;
+    const d = (p) => p.default && p.tag !== "tag:yaml.org,2002:str" && p.test?.test(h), { compat: f, tags: m } = e.doc.schema;
     if (m.some(d) || f?.some(d))
       return he(a, e);
   }
-  return o ? h : it(h, l, Es, nt(e, !1));
+  return o ? h : it(h, l, Ns, nt(e, !1));
 }
-function Dt(s, e, t, i) {
+function Pt(s, e, t, i) {
   const { implicitKey: n, inFlow: a } = e, r = typeof s.value == "string" ? s : Object.assign({}, s, { value: String(s.value) });
   let { type: o } = s;
   o !== E.QUOTE_DOUBLE && /[\x00-\x08\x0b-\x1f\x7f-\x9f\u{D800}-\u{DFFF}]/u.test(r.value) && (o = E.QUOTE_DOUBLE);
-  const l = (p) => {
-    switch (p) {
+  const l = (u) => {
+    switch (u) {
       case E.BLOCK_FOLDED:
       case E.BLOCK_LITERAL:
-        return n || a ? he(r.value, e) : Ge(r, e, t, i);
+        return n || a ? he(r.value, e) : We(r, e, t, i);
       case E.QUOTE_DOUBLE:
         return Oe(r.value, e);
       case E.QUOTE_SINGLE:
         return wt(r.value, e);
       case E.PLAIN:
-        return zi(r, e, t, i);
+        return Hi(r, e, t, i);
       default:
         return null;
     }
   };
   let c = l(o);
   if (c === null) {
-    const { defaultKeyType: p, defaultStringType: h } = e.options, d = n && p || h;
+    const { defaultKeyType: u, defaultStringType: h } = e.options, d = n && u || h;
     if (c = l(d), c === null)
       throw new Error(`Unsupported default string type ${d}`);
   }
   return c;
 }
-function Ns(s, e) {
+function Os(s, e) {
   const t = Object.assign({
     blockQuote: !0,
-    commentString: Ki,
+    commentString: qi,
     defaultKeyType: null,
     defaultStringType: "PLAIN",
     directives: null,
@@ -1463,7 +1463,7 @@ function Ns(s, e) {
     options: t
   };
 }
-function Hi(s, e) {
+function Fi(s, e) {
   if (e.tag) {
     const n = s.filter((a) => a.tag === e.tag);
     if (n.length > 0)
@@ -1486,16 +1486,16 @@ function Hi(s, e) {
   }
   return t;
 }
-function Fi(s, e, { anchors: t, doc: i }) {
+function Vi(s, e, { anchors: t, doc: i }) {
   if (!i.directives)
     return "";
   const n = [], a = (I(s) || C(s)) && s.anchor;
-  a && xs(a) && (t.add(a), n.push(`&${a}`));
+  a && ks(a) && (t.add(a), n.push(`&${a}`));
   const r = s.tag ?? (e.default ? null : e.tag);
   return r && n.push(i.directives.tagString(r)), n.join(" ");
 }
 function ge(s, e, t, i) {
-  if (D(s))
+  if (P(s))
     return s.toString(e, t, i);
   if (ve(s)) {
     if (e.doc.directives)
@@ -1506,15 +1506,15 @@ function ge(s, e, t, i) {
   }
   let n;
   const a = L(s) ? s : e.doc.createNode(s, { onTagObj: (l) => n = l });
-  n ?? (n = Hi(e.doc.schema.tags, a));
-  const r = Fi(a, n, e);
+  n ?? (n = Fi(e.doc.schema.tags, a));
+  const r = Vi(a, n, e);
   r.length > 0 && (e.indentAtStart = (e.indentAtStart ?? 0) + r.length + 1);
-  const o = typeof n.stringify == "function" ? n.stringify(a, e, t, i) : I(a) ? Dt(a, e, t, i) : a.toString(e, t, i);
+  const o = typeof n.stringify == "function" ? n.stringify(a, e, t, i) : I(a) ? Pt(a, e, t, i) : a.toString(e, t, i);
   return r ? I(a) || o[0] === "{" || o[0] === "[" ? `${r} ${o}` : `${r}
 ${e.indent}${o}` : o;
 }
-function Vi({ key: s, value: e }, t, i, n) {
-  const { allNullValues: a, doc: r, indent: o, indentStep: l, options: { commentString: c, indentSeq: p, simpleKeys: h } } = t;
+function Yi({ key: s, value: e }, t, i, n) {
+  const { allNullValues: a, doc: r, indent: o, indentStep: l, options: { commentString: c, indentSeq: u, simpleKeys: h } } = t;
   let d = L(s) && s.comment || null;
   if (h) {
     if (d)
@@ -1530,7 +1530,7 @@ function Vi({ key: s, value: e }, t, i, n) {
     implicitKey: !f && (h || !a),
     indent: o + l
   });
-  let m = !1, u = !1, g = ge(s, t, () => m = !0, () => u = !0);
+  let m = !1, p = !1, g = ge(s, t, () => m = !0, () => p = !0);
   if (!f && !t.inFlow && g.length > 1024) {
     if (h)
       throw new Error("With simple keys, single line scalar must not span more than 1024 characters");
@@ -1540,13 +1540,13 @@ function Vi({ key: s, value: e }, t, i, n) {
     if (a || e == null)
       return m && i && i(), g === "" ? "?" : f ? `? ${g}` : g;
   } else if (a && !h || e == null && f)
-    return g = `? ${g}`, d && !m ? g += ee(g, t.indent, c(d)) : u && n && n(), g;
+    return g = `? ${g}`, d && !m ? g += ee(g, t.indent, c(d)) : p && n && n(), g;
   m && (d = null), f ? (d && (g += ee(g, t.indent, c(d))), g = `? ${g}
 ${o}:`) : (g = `${g}:`, d && (g += ee(g, t.indent, c(d))));
-  let b, w, k;
-  L(e) ? (b = !!e.spaceBefore, w = e.commentBefore, k = e.comment) : (b = !1, w = null, k = null, e && typeof e == "object" && (e = r.createNode(e))), t.implicitKey = !1, !f && !d && I(e) && (t.indentAtStart = g.length + 1), u = !1, !p && l.length >= 2 && !t.inFlow && !f && Re(e) && !e.flow && !e.tag && !e.anchor && (t.indent = t.indent.substring(2));
-  let A = !1;
-  const _ = ge(e, t, () => A = !0, () => u = !0);
+  let b, w, S;
+  L(e) ? (b = !!e.spaceBefore, w = e.commentBefore, S = e.comment) : (b = !1, w = null, S = null, e && typeof e == "object" && (e = r.createNode(e))), t.implicitKey = !1, !f && !d && I(e) && (t.indentAtStart = g.length + 1), p = !1, !u && l.length >= 2 && !t.inFlow && !f && Re(e) && !e.flow && !e.tag && !e.anchor && (t.indent = t.indent.substring(2));
+  let _ = !1;
+  const A = ge(e, t, () => _ = !0, () => p = !0);
   let N = " ";
   if (d || b || w) {
     if (N = b ? `
@@ -1555,28 +1555,28 @@ ${o}:`) : (g = `${g}:`, d && (g += ee(g, t.indent, c(d))));
       N += `
 ${F(T, t.indent)}`;
     }
-    _ === "" && !t.inFlow ? N === `
-` && k && (N = `
+    A === "" && !t.inFlow ? N === `
+` && S && (N = `
 
 `) : N += `
 ${t.indent}`;
   } else if (!f && C(e)) {
-    const T = _[0], v = _.indexOf(`
-`), P = v !== -1, Y = t.inFlow ?? e.flow ?? e.items.length === 0;
-    if (P || !Y) {
+    const T = A[0], v = A.indexOf(`
+`), D = v !== -1, Y = t.inFlow ?? e.flow ?? e.items.length === 0;
+    if (D || !Y) {
       let ne = !1;
-      if (P && (T === "&" || T === "!")) {
-        let M = _.indexOf(" ");
-        T === "&" && M !== -1 && M < v && _[M + 1] === "!" && (M = _.indexOf(" ", M + 1)), (M === -1 || v < M) && (ne = !0);
+      if (D && (T === "&" || T === "!")) {
+        let M = A.indexOf(" ");
+        T === "&" && M !== -1 && M < v && A[M + 1] === "!" && (M = A.indexOf(" ", M + 1)), (M === -1 || v < M) && (ne = !0);
       }
       ne || (N = `
 ${t.indent}`);
     }
-  } else (_ === "" || _[0] === `
+  } else (A === "" || A[0] === `
 `) && (N = "");
-  return g += N + _, t.inFlow ? A && i && i() : k && !A ? g += ee(g, t.indent, c(k)) : u && n && n(), g;
+  return g += N + A, t.inFlow ? _ && i && i() : S && !_ ? g += ee(g, t.indent, c(S)) : p && n && n(), g;
 }
-function Os(s, e) {
+function Ts(s, e) {
   (s === "debug" || s === "warn") && console.warn(e);
 }
 const Ue = "<<", V = {
@@ -1585,23 +1585,23 @@ const Ue = "<<", V = {
   tag: "tag:yaml.org,2002:merge",
   test: /^<<$/,
   resolve: () => Object.assign(new E(Symbol(Ue)), {
-    addToJSMap: Ts
+    addToJSMap: Is
   }),
   stringify: () => Ue
-}, Yi = (s, e) => (V.identify(e) || I(e) && (!e.type || e.type === E.PLAIN) && V.identify(e.value)) && s?.doc.schema.tags.some((t) => t.tag === V.tag && t.default);
-function Ts(s, e, t) {
-  const i = Is(s, t);
+}, Wi = (s, e) => (V.identify(e) || I(e) && (!e.type || e.type === E.PLAIN) && V.identify(e.value)) && s?.doc.schema.tags.some((t) => t.tag === V.tag && t.default);
+function Is(s, e, t) {
+  const i = Cs(s, t);
   if (Re(i))
     for (const n of i.items)
-      ut(s, e, n);
+      pt(s, e, n);
   else if (Array.isArray(i))
     for (const n of i)
-      ut(s, e, n);
+      pt(s, e, n);
   else
-    ut(s, e, i);
+    pt(s, e, i);
 }
-function ut(s, e, t) {
-  const i = Is(s, t);
+function pt(s, e, t) {
+  const i = Cs(s, t);
   if (!Me(i))
     throw new Error("Merge sources must be maps or map aliases");
   const n = i.toJSON(null, s, Map);
@@ -1614,14 +1614,14 @@ function ut(s, e, t) {
     });
   return e;
 }
-function Is(s, e) {
+function Cs(s, e) {
   return s && ve(e) ? e.resolve(s.doc, s) : e;
 }
-function Cs(s, e, { key: t, value: i }) {
+function Ls(s, e, { key: t, value: i }) {
   if (L(t) && t.addToJSMap)
     t.addToJSMap(s, e, i);
-  else if (Yi(s, t))
-    Ts(s, e, i);
+  else if (Wi(s, t))
+    Is(s, e, i);
   else {
     const n = U(t, "", s);
     if (e instanceof Map)
@@ -1646,7 +1646,7 @@ function Gi(s, e, t) {
   if (typeof e != "object")
     return String(e);
   if (L(s) && t?.doc) {
-    const i = Ns(t.doc, {});
+    const i = Os(t.doc, {});
     i.anchors = /* @__PURE__ */ new Set();
     for (const a of t.anchors.keys())
       i.anchors.add(a.anchor);
@@ -1654,50 +1654,50 @@ function Gi(s, e, t) {
     const n = s.toString(i);
     if (!t.mapKeyWarned) {
       let a = JSON.stringify(n);
-      a.length > 40 && (a = a.substring(0, 36) + '..."'), Os(t.doc.options.logLevel, `Keys with collection values will be stringified due to JS Object restrictions: ${a}. Set mapAsMap: true to use object keys.`), t.mapKeyWarned = !0;
+      a.length > 40 && (a = a.substring(0, 36) + '..."'), Ts(t.doc.options.logLevel, `Keys with collection values will be stringified due to JS Object restrictions: ${a}. Set mapAsMap: true to use object keys.`), t.mapKeyWarned = !0;
     }
     return n;
   }
   return JSON.stringify(e);
 }
-function Pt(s, e, t) {
+function Dt(s, e, t) {
   const i = Le(s, void 0, t), n = Le(e, void 0, t);
-  return new B(i, n);
+  return new j(i, n);
 }
-class B {
+class j {
   constructor(e, t = null) {
-    Object.defineProperty(this, K, { value: ws }), this.key = e, this.value = t;
+    Object.defineProperty(this, K, { value: $s }), this.key = e, this.value = t;
   }
   clone(e) {
     let { key: t, value: i } = this;
-    return L(t) && (t = t.clone(e)), L(i) && (i = i.clone(e)), new B(t, i);
+    return L(t) && (t = t.clone(e)), L(i) && (i = i.clone(e)), new j(t, i);
   }
   toJSON(e, t) {
     const i = t?.mapAsMap ? /* @__PURE__ */ new Map() : {};
-    return Cs(t, i, this);
+    return Ls(t, i, this);
   }
   toString(e, t, i) {
-    return e?.doc ? Vi(this, e, t, i) : JSON.stringify(this);
+    return e?.doc ? Yi(this, e, t, i) : JSON.stringify(this);
   }
 }
-function Ls(s, e, t) {
-  return (e.inFlow ?? s.flow ? Ji : Wi)(s, e, t);
+function Ps(s, e, t) {
+  return (e.inFlow ?? s.flow ? Qi : Ji)(s, e, t);
 }
-function Wi({ comment: s, items: e }, t, { blockItemPrefix: i, flowChars: n, itemIndent: a, onChompKeep: r, onComment: o }) {
-  const { indent: l, options: { commentString: c } } = t, p = Object.assign({}, t, { indent: a, type: null });
+function Ji({ comment: s, items: e }, t, { blockItemPrefix: i, flowChars: n, itemIndent: a, onChompKeep: r, onComment: o }) {
+  const { indent: l, options: { commentString: c } } = t, u = Object.assign({}, t, { indent: a, type: null });
   let h = !1;
   const d = [];
   for (let m = 0; m < e.length; ++m) {
-    const u = e[m];
+    const p = e[m];
     let g = null;
-    if (L(u))
-      !h && u.spaceBefore && d.push(""), Xe(t, d, u.commentBefore, h), u.comment && (g = u.comment);
-    else if (D(u)) {
-      const w = L(u.key) ? u.key : null;
+    if (L(p))
+      !h && p.spaceBefore && d.push(""), Xe(t, d, p.commentBefore, h), p.comment && (g = p.comment);
+    else if (P(p)) {
+      const w = L(p.key) ? p.key : null;
       w && (!h && w.spaceBefore && d.push(""), Xe(t, d, w.commentBefore, h));
     }
     h = !1;
-    let b = ge(u, p, () => g = null, () => h = !0);
+    let b = ge(p, u, () => g = null, () => h = !0);
     g && (b += ee(b, a, c(g))), h && g && (h = !1), d.push(i + b);
   }
   let f;
@@ -1706,16 +1706,16 @@ function Wi({ comment: s, items: e }, t, { blockItemPrefix: i, flowChars: n, ite
   else {
     f = d[0];
     for (let m = 1; m < d.length; ++m) {
-      const u = d[m];
-      f += u ? `
-${l}${u}` : `
+      const p = d[m];
+      f += p ? `
+${l}${p}` : `
 `;
     }
   }
   return s ? (f += `
 ` + F(c(s), l), o && o()) : h && r && r(), f;
 }
-function Ji({ items: s }, e, { flowChars: t, itemIndent: i }) {
+function Qi({ items: s }, e, { flowChars: t, itemIndent: i }) {
   const { indent: n, indentStep: a, flowCollectionPadding: r, options: { commentString: o } } = e;
   i += a;
   const l = Object.assign({}, e, {
@@ -1723,36 +1723,36 @@ function Ji({ items: s }, e, { flowChars: t, itemIndent: i }) {
     inFlow: !0,
     type: null
   });
-  let c = !1, p = 0;
+  let c = !1, u = 0;
   const h = [];
   for (let m = 0; m < s.length; ++m) {
-    const u = s[m];
+    const p = s[m];
     let g = null;
-    if (L(u))
-      u.spaceBefore && h.push(""), Xe(e, h, u.commentBefore, !1), u.comment && (g = u.comment);
-    else if (D(u)) {
-      const w = L(u.key) ? u.key : null;
+    if (L(p))
+      p.spaceBefore && h.push(""), Xe(e, h, p.commentBefore, !1), p.comment && (g = p.comment);
+    else if (P(p)) {
+      const w = L(p.key) ? p.key : null;
       w && (w.spaceBefore && h.push(""), Xe(e, h, w.commentBefore, !1), w.comment && (c = !0));
-      const k = L(u.value) ? u.value : null;
-      k ? (k.comment && (g = k.comment), k.commentBefore && (c = !0)) : u.value == null && w?.comment && (g = w.comment);
+      const S = L(p.value) ? p.value : null;
+      S ? (S.comment && (g = S.comment), S.commentBefore && (c = !0)) : p.value == null && w?.comment && (g = w.comment);
     }
     g && (c = !0);
-    let b = ge(u, l, () => g = null);
-    c || (c = h.length > p || b.includes(`
-`)), m < s.length - 1 ? b += "," : e.options.trailingComma && (e.options.lineWidth > 0 && (c || (c = h.reduce((w, k) => w + k.length + 2, 2) + (b.length + 2) > e.options.lineWidth)), c && (b += ",")), g && (b += ee(b, i, o(g))), h.push(b), p = h.length;
+    let b = ge(p, l, () => g = null);
+    c || (c = h.length > u || b.includes(`
+`)), m < s.length - 1 ? b += "," : e.options.trailingComma && (e.options.lineWidth > 0 && (c || (c = h.reduce((w, S) => w + S.length + 2, 2) + (b.length + 2) > e.options.lineWidth)), c && (b += ",")), g && (b += ee(b, i, o(g))), h.push(b), u = h.length;
   }
   const { start: d, end: f } = t;
   if (h.length === 0)
     return d + f;
   if (!c) {
-    const m = h.reduce((u, g) => u + g.length + 2, 2);
+    const m = h.reduce((p, g) => p + g.length + 2, 2);
     c = e.options.lineWidth > 0 && m > e.options.lineWidth;
   }
   if (c) {
     let m = d;
-    for (const u of h)
-      m += u ? `
-${a}${n}${u}` : `
+    for (const p of h)
+      m += p ? `
+${a}${n}${p}` : `
 `;
     return `${m}
 ${n}${f}`;
@@ -1768,10 +1768,10 @@ function Xe({ indent: s, options: { commentString: e } }, t, i, n) {
 function te(s, e) {
   const t = I(e) ? e.value : e;
   for (const i of s)
-    if (D(i) && (i.key === e || i.key === t || I(i.key) && i.key.value === t))
+    if (P(i) && (i.key === e || i.key === t || I(i.key) && i.key.value === t))
       return i;
 }
-class j extends _s {
+class B extends Es {
   static get tagName() {
     return "tag:yaml.org,2002:map";
   }
@@ -1788,7 +1788,7 @@ class j extends _s {
         c = a.call(t, l, c);
       else if (Array.isArray(a) && !a.includes(l))
         return;
-      (c !== void 0 || n) && r.items.push(Pt(l, c, i));
+      (c !== void 0 || n) && r.items.push(Dt(l, c, i));
     };
     if (t instanceof Map)
       for (const [l, c] of t)
@@ -1806,7 +1806,7 @@ class j extends _s {
    */
   add(e, t) {
     let i;
-    D(e) ? i = e : !e || typeof e != "object" || !("key" in e) ? i = new B(e, e?.value) : i = new B(e.key, e.value);
+    P(e) ? i = e : !e || typeof e != "object" || !("key" in e) ? i = new j(e, e?.value) : i = new j(e.key, e.value);
     const n = te(this.items, i.key), a = this.schema?.sortMapEntries;
     if (n) {
       if (!t)
@@ -1830,7 +1830,7 @@ class j extends _s {
     return !!te(this.items, e);
   }
   set(e, t) {
-    this.add(new B(e, t), !0);
+    this.add(new j(e, t), !0);
   }
   /**
    * @param ctx - Conversion context, originally set in Document#toJS()
@@ -1841,16 +1841,16 @@ class j extends _s {
     const n = i ? new i() : t?.mapAsMap ? /* @__PURE__ */ new Map() : {};
     t?.onCreate && t.onCreate(n);
     for (const a of this.items)
-      Cs(t, n, a);
+      Ls(t, n, a);
     return n;
   }
   toString(e, t, i) {
     if (!e)
       return JSON.stringify(this);
     for (const n of this.items)
-      if (!D(n))
+      if (!P(n))
         throw new Error(`Map items must all be pairs; found ${JSON.stringify(n)} instead`);
-    return !e.allNullValues && this.hasAllNullValues(!1) && (e = Object.assign({}, e, { allNullValues: !0 })), Ls(this, e, {
+    return !e.allNullValues && this.hasAllNullValues(!1) && (e = Object.assign({}, e, { allNullValues: !0 })), Ps(this, e, {
       blockItemPrefix: "",
       flowChars: { start: "{", end: "}" },
       itemIndent: e.indent || "",
@@ -1862,14 +1862,14 @@ class j extends _s {
 const we = {
   collection: "map",
   default: !0,
-  nodeClass: j,
+  nodeClass: B,
   tag: "tag:yaml.org,2002:map",
   resolve(s, e) {
     return Me(s) || e("Expected a mapping for this tag"), s;
   },
-  createNode: (s, e, t) => j.from(s, e, t)
+  createNode: (s, e, t) => B.from(s, e, t)
 };
-class ie extends _s {
+class ie extends Es {
   static get tagName() {
     return "tag:yaml.org,2002:seq";
   }
@@ -1931,7 +1931,7 @@ class ie extends _s {
     return i;
   }
   toString(e, t, i) {
-    return e ? Ls(this, e, {
+    return e ? Ps(this, e, {
       blockItemPrefix: "- ",
       flowChars: { start: "[", end: "]" },
       itemIndent: (e.indent || "") + "  ",
@@ -1973,7 +1973,7 @@ const $e = {
   tag: "tag:yaml.org,2002:str",
   resolve: (s) => s,
   stringify(s, e, t, i) {
-    return e = Object.assign({ actualString: !0 }, e), Dt(s, e, t, i);
+    return e = Object.assign({ actualString: !0 }, e), Pt(s, e, t, i);
   }
 }, ot = {
   identify: (s) => s == null,
@@ -2021,7 +2021,7 @@ const Ds = {
   test: /^(?:[-+]?\.(?:inf|Inf|INF)|\.nan|\.NaN|\.NAN)$/,
   resolve: (s) => s.slice(-3).toLowerCase() === "nan" ? NaN : s[0] === "-" ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY,
   stringify: z
-}, Ps = {
+}, Ms = {
   identify: (s) => typeof s == "number",
   default: !0,
   tag: "tag:yaml.org,2002:float",
@@ -2032,7 +2032,7 @@ const Ds = {
     const e = Number(s.value);
     return isFinite(e) ? e.toExponential() : z(s);
   }
-}, Ms = {
+}, Rs = {
   identify: (s) => typeof s == "number",
   default: !0,
   tag: "tag:yaml.org,2002:float",
@@ -2043,7 +2043,7 @@ const Ds = {
   },
   stringify: z
 }, lt = (s) => typeof s == "bigint" || Number.isInteger(s), Rt = (s, e, t, { intAsBigInt: i }) => i ? BigInt(s) : parseInt(s.substring(e), t);
-function Rs(s, e, t) {
+function js(s, e, t) {
   const { value: i } = s;
   return lt(i) && i >= 0 ? t + i.toString(e) : z(s);
 }
@@ -2054,39 +2054,39 @@ const Bs = {
   format: "OCT",
   test: /^0o[0-7]+$/,
   resolve: (s, e, t) => Rt(s, 2, 8, t),
-  stringify: (s) => Rs(s, 8, "0o")
-}, js = {
+  stringify: (s) => js(s, 8, "0o")
+}, Us = {
   identify: lt,
   default: !0,
   tag: "tag:yaml.org,2002:int",
   test: /^[-+]?[0-9]+$/,
   resolve: (s, e, t) => Rt(s, 0, 10, t),
   stringify: z
-}, Us = {
+}, Ks = {
   identify: (s) => lt(s) && s >= 0,
   default: !0,
   tag: "tag:yaml.org,2002:int",
   format: "HEX",
   test: /^0x[0-9a-fA-F]+$/,
   resolve: (s, e, t) => Rt(s, 2, 16, t),
-  stringify: (s) => Rs(s, 16, "0x")
-}, Qi = [
+  stringify: (s) => js(s, 16, "0x")
+}, Xi = [
   we,
   $e,
   rt,
   ot,
   Mt,
   Bs,
-  js,
   Us,
+  Ks,
   Ds,
-  Ps,
-  Ms
+  Ms,
+  Rs
 ];
 function as(s) {
   return typeof s == "bigint" || Number.isInteger(s);
 }
-const qe = ({ value: s }) => JSON.stringify(s), Xi = [
+const qe = ({ value: s }) => JSON.stringify(s), Zi = [
   {
     identify: (s) => typeof s == "string",
     default: !0,
@@ -2127,14 +2127,14 @@ const qe = ({ value: s }) => JSON.stringify(s), Xi = [
     resolve: (s) => parseFloat(s),
     stringify: qe
   }
-], Zi = {
+], en = {
   default: !0,
   tag: "",
   test: /^/,
   resolve(s, e) {
     return e(`Unresolved plain scalar ${JSON.stringify(s)}`), s;
   }
-}, en = [we, $e].concat(Xi, Zi), Bt = {
+}, tn = [we, $e].concat(Zi, en), jt = {
   identify: (s) => s instanceof Uint8Array,
   // Buffer inherits from Uint8Array
   default: !1,
@@ -2169,23 +2169,23 @@ const qe = ({ value: s }) => JSON.stringify(s), Xi = [
     } else
       throw new Error("This environment does not support writing binary tags; either Buffer or btoa is required");
     if (e ?? (e = E.BLOCK_LITERAL), e !== E.QUOTE_DOUBLE) {
-      const l = Math.max(i.options.lineWidth - i.indent.length, i.options.minContentWidth), c = Math.ceil(o.length / l), p = new Array(c);
+      const l = Math.max(i.options.lineWidth - i.indent.length, i.options.minContentWidth), c = Math.ceil(o.length / l), u = new Array(c);
       for (let h = 0, d = 0; h < c; ++h, d += l)
-        p[h] = o.substr(d, l);
-      o = p.join(e === E.BLOCK_LITERAL ? `
+        u[h] = o.substr(d, l);
+      o = u.join(e === E.BLOCK_LITERAL ? `
 ` : " ");
     }
-    return Dt({ comment: s, type: e, value: o }, i, n, a);
+    return Pt({ comment: s, type: e, value: o }, i, n, a);
   }
 };
-function Ks(s, e) {
+function qs(s, e) {
   if (Re(s))
     for (let t = 0; t < s.items.length; ++t) {
       let i = s.items[t];
-      if (!D(i)) {
+      if (!P(i)) {
         if (Me(i)) {
           i.items.length > 1 && e("Each pair must have its own sequence indicator");
-          const n = i.items[0] || new B(new E(null));
+          const n = i.items[0] || new j(new E(null));
           if (i.commentBefore && (n.key.commentBefore = n.key.commentBefore ? `${i.commentBefore}
 ${n.key.commentBefore}` : i.commentBefore), i.comment) {
             const a = n.value ?? n.key;
@@ -2194,14 +2194,14 @@ ${a.comment}` : i.comment;
           }
           i = n;
         }
-        s.items[t] = D(i) ? i : new B(i);
+        s.items[t] = P(i) ? i : new j(i);
       }
     }
   else
     e("Expected a sequence for this tag");
   return s;
 }
-function qs(s, e, t) {
+function zs(s, e, t) {
   const { replacer: i } = t, n = new ie(s);
   n.tag = "tag:yaml.org,2002:pairs";
   let a = 0;
@@ -2222,20 +2222,20 @@ function qs(s, e, t) {
           throw new TypeError(`Expected tuple with one key, not ${c.length} keys`);
       } else
         o = r;
-      n.items.push(Pt(o, l, t));
+      n.items.push(Dt(o, l, t));
     }
   return n;
 }
-const jt = {
+const Bt = {
   collection: "seq",
   default: !1,
   tag: "tag:yaml.org,2002:pairs",
-  resolve: Ks,
-  createNode: qs
+  resolve: qs,
+  createNode: zs
 };
 class de extends ie {
   constructor() {
-    super(), this.add = j.prototype.add.bind(this), this.delete = j.prototype.delete.bind(this), this.get = j.prototype.get.bind(this), this.has = j.prototype.has.bind(this), this.set = j.prototype.set.bind(this), this.tag = de.tag;
+    super(), this.add = B.prototype.add.bind(this), this.delete = B.prototype.delete.bind(this), this.get = B.prototype.get.bind(this), this.has = B.prototype.has.bind(this), this.set = B.prototype.set.bind(this), this.tag = de.tag;
   }
   /**
    * If `ctx` is given, the return type is actually `Map<unknown, unknown>`,
@@ -2248,14 +2248,14 @@ class de extends ie {
     t?.onCreate && t.onCreate(i);
     for (const n of this.items) {
       let a, r;
-      if (D(n) ? (a = U(n.key, "", t), r = U(n.value, a, t)) : a = U(n, "", t), i.has(a))
+      if (P(n) ? (a = U(n.key, "", t), r = U(n.value, a, t)) : a = U(n, "", t), i.has(a))
         throw new Error("Ordered maps must not include duplicate keys");
       i.set(a, r);
     }
     return i;
   }
   static from(e, t, i) {
-    const n = qs(e, t, i), a = new this();
+    const n = zs(e, t, i), a = new this();
     return a.items = n.items, a;
   }
 }
@@ -2267,38 +2267,38 @@ const Ut = {
   default: !1,
   tag: "tag:yaml.org,2002:omap",
   resolve(s, e) {
-    const t = Ks(s, e), i = [];
+    const t = qs(s, e), i = [];
     for (const { key: n } of t.items)
       I(n) && (i.includes(n.value) ? e(`Ordered maps must not include duplicate keys: ${n.value}`) : i.push(n.value));
     return Object.assign(new de(), t);
   },
   createNode: (s, e, t) => de.from(s, e, t)
 };
-function zs({ value: s, source: e }, t) {
-  return e && (s ? Hs : Fs).test.test(e) ? e : s ? t.options.trueStr : t.options.falseStr;
+function Hs({ value: s, source: e }, t) {
+  return e && (s ? Fs : Vs).test.test(e) ? e : s ? t.options.trueStr : t.options.falseStr;
 }
-const Hs = {
+const Fs = {
   identify: (s) => s === !0,
   default: !0,
   tag: "tag:yaml.org,2002:bool",
   test: /^(?:Y|y|[Yy]es|YES|[Tt]rue|TRUE|[Oo]n|ON)$/,
   resolve: () => new E(!0),
-  stringify: zs
-}, Fs = {
+  stringify: Hs
+}, Vs = {
   identify: (s) => s === !1,
   default: !0,
   tag: "tag:yaml.org,2002:bool",
   test: /^(?:N|n|[Nn]o|NO|[Ff]alse|FALSE|[Oo]ff|OFF)$/,
   resolve: () => new E(!1),
-  stringify: zs
-}, tn = {
+  stringify: Hs
+}, sn = {
   identify: (s) => typeof s == "number",
   default: !0,
   tag: "tag:yaml.org,2002:float",
   test: /^(?:[-+]?\.(?:inf|Inf|INF)|\.nan|\.NaN|\.NAN)$/,
   resolve: (s) => s.slice(-3).toLowerCase() === "nan" ? NaN : s[0] === "-" ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY,
   stringify: z
-}, sn = {
+}, nn = {
   identify: (s) => typeof s == "number",
   default: !0,
   tag: "tag:yaml.org,2002:float",
@@ -2309,7 +2309,7 @@ const Hs = {
     const e = Number(s.value);
     return isFinite(e) ? e.toExponential() : z(s);
   }
-}, nn = {
+}, an = {
   identify: (s) => typeof s == "number",
   default: !0,
   tag: "tag:yaml.org,2002:float",
@@ -2323,7 +2323,7 @@ const Hs = {
     return e;
   },
   stringify: z
-}, Be = (s) => typeof s == "bigint" || Number.isInteger(s);
+}, je = (s) => typeof s == "bigint" || Number.isInteger(s);
 function ct(s, e, t, { intAsBigInt: i }) {
   const n = s[0];
   if ((n === "-" || n === "+") && (e += 1), s = s.substring(e).replace(/_/g, ""), i) {
@@ -2346,37 +2346,37 @@ function ct(s, e, t, { intAsBigInt: i }) {
 }
 function Kt(s, e, t) {
   const { value: i } = s;
-  if (Be(i)) {
+  if (je(i)) {
     const n = i.toString(e);
     return i < 0 ? "-" + t + n.substr(1) : t + n;
   }
   return z(s);
 }
-const an = {
-  identify: Be,
+const rn = {
+  identify: je,
   default: !0,
   tag: "tag:yaml.org,2002:int",
   format: "BIN",
   test: /^[-+]?0b[0-1_]+$/,
   resolve: (s, e, t) => ct(s, 2, 2, t),
   stringify: (s) => Kt(s, 2, "0b")
-}, rn = {
-  identify: Be,
+}, on = {
+  identify: je,
   default: !0,
   tag: "tag:yaml.org,2002:int",
   format: "OCT",
   test: /^[-+]?0[0-7_]+$/,
   resolve: (s, e, t) => ct(s, 1, 8, t),
   stringify: (s) => Kt(s, 8, "0")
-}, on = {
-  identify: Be,
+}, ln = {
+  identify: je,
   default: !0,
   tag: "tag:yaml.org,2002:int",
   test: /^[-+]?[0-9][0-9_]*$/,
   resolve: (s, e, t) => ct(s, 0, 10, t),
   stringify: z
-}, ln = {
-  identify: Be,
+}, cn = {
+  identify: je,
   default: !0,
   tag: "tag:yaml.org,2002:int",
   format: "HEX",
@@ -2384,13 +2384,13 @@ const an = {
   resolve: (s, e, t) => ct(s, 2, 16, t),
   stringify: (s) => Kt(s, 16, "0x")
 };
-class ue extends j {
+class pe extends B {
   constructor(e) {
-    super(e), this.tag = ue.tag;
+    super(e), this.tag = pe.tag;
   }
   add(e) {
     let t;
-    D(e) ? t = e : e && typeof e == "object" && "key" in e && "value" in e && e.value === null ? t = new B(e.key, null) : t = new B(e, null), te(this.items, t.key) || this.items.push(t);
+    P(e) ? t = e : e && typeof e == "object" && "key" in e && "value" in e && e.value === null ? t = new j(e.key, null) : t = new j(e, null), te(this.items, t.key) || this.items.push(t);
   }
   /**
    * If `keepPair` is `true`, returns the Pair matching `key`.
@@ -2398,13 +2398,13 @@ class ue extends j {
    */
   get(e, t) {
     const i = te(this.items, e);
-    return !t && D(i) ? I(i.key) ? i.key.value : i.key : i;
+    return !t && P(i) ? I(i.key) ? i.key.value : i.key : i;
   }
   set(e, t) {
     if (typeof t != "boolean")
       throw new Error(`Expected boolean value for set(key, value) in a YAML set, not ${typeof t}`);
     const i = te(this.items, e);
-    i && !t ? this.items.splice(this.items.indexOf(i), 1) : !i && t && this.items.push(new B(e));
+    i && !t ? this.items.splice(this.items.indexOf(i), 1) : !i && t && this.items.push(new j(e));
   }
   toJSON(e, t) {
     return super.toJSON(e, t, Set);
@@ -2420,22 +2420,22 @@ class ue extends j {
     const { replacer: n } = i, a = new this(e);
     if (t && Symbol.iterator in Object(t))
       for (let r of t)
-        typeof n == "function" && (r = n.call(t, r, r)), a.items.push(Pt(r, null, i));
+        typeof n == "function" && (r = n.call(t, r, r)), a.items.push(Dt(r, null, i));
     return a;
   }
 }
-ue.tag = "tag:yaml.org,2002:set";
+pe.tag = "tag:yaml.org,2002:set";
 const qt = {
   collection: "map",
   identify: (s) => s instanceof Set,
-  nodeClass: ue,
+  nodeClass: pe,
   default: !1,
   tag: "tag:yaml.org,2002:set",
-  createNode: (s, e, t) => ue.from(s, e, t),
+  createNode: (s, e, t) => pe.from(s, e, t),
   resolve(s, e) {
     if (Me(s)) {
       if (s.hasAllNullValues(!0))
-        return Object.assign(new ue(), s);
+        return Object.assign(new pe(), s);
       e("Set items must all have null values");
     } else
       e("Expected a mapping for this tag");
@@ -2446,7 +2446,7 @@ function zt(s, e) {
   const t = s[0], i = t === "-" || t === "+" ? s.substring(1) : s, n = (r) => e ? BigInt(r) : Number(r), a = i.replace(/_/g, "").split(":").reduce((r, o) => r * n(60) + n(o), n(0));
   return t === "-" ? n(-1) * a : a;
 }
-function Vs(s) {
+function Ys(s) {
   let { value: e } = s, t = (r) => r;
   if (typeof e == "bigint")
     t = (r) => BigInt(r);
@@ -2457,14 +2457,14 @@ function Vs(s) {
   const n = t(60), a = [e % n];
   return e < 60 ? a.unshift(0) : (e = (e - a[0]) / n, a.unshift(e % n), e >= 60 && (e = (e - a[0]) / n, a.unshift(e))), i + a.map((r) => String(r).padStart(2, "0")).join(":").replace(/000000\d*$/, "");
 }
-const Ys = {
+const Ws = {
   identify: (s) => typeof s == "bigint" || Number.isInteger(s),
   default: !0,
   tag: "tag:yaml.org,2002:int",
   format: "TIME",
   test: /^[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+$/,
   resolve: (s, e, { intAsBigInt: t }) => zt(s, t),
-  stringify: Vs
+  stringify: Ys
 }, Gs = {
   identify: (s) => typeof s == "number",
   default: !0,
@@ -2472,7 +2472,7 @@ const Ys = {
   format: "TIME",
   test: /^[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+\.[0-9_]*$/,
   resolve: (s) => zt(s, !1),
-  stringify: Vs
+  stringify: Ys
 }, ht = {
   identify: (s) => s instanceof Date,
   default: !0,
@@ -2487,9 +2487,9 @@ const Ys = {
       throw new Error("!!timestamp expects a date, starting with yyyy-mm-dd");
     const [, t, i, n, a, r, o] = e.map(Number), l = e[7] ? Number((e[7] + "00").substr(1, 3)) : 0;
     let c = Date.UTC(t, i - 1, n, a || 0, r || 0, o || 0, l);
-    const p = e[8];
-    if (p && p !== "Z") {
-      let h = zt(p, !1);
+    const u = e[8];
+    if (u && u !== "Z") {
+      let h = zt(u, !1);
       Math.abs(h) < 30 && (h *= 60), c -= 6e4 * h;
     }
     return new Date(c);
@@ -2500,57 +2500,57 @@ const Ys = {
   $e,
   rt,
   ot,
-  Hs,
   Fs,
-  an,
+  Vs,
   rn,
   on,
   ln,
-  tn,
+  cn,
   sn,
   nn,
-  Bt,
+  an,
+  jt,
   V,
   Ut,
-  jt,
+  Bt,
   qt,
-  Ys,
+  Ws,
   Gs,
   ht
 ], os = /* @__PURE__ */ new Map([
-  ["core", Qi],
+  ["core", Xi],
   ["failsafe", [we, $e, rt]],
-  ["json", en],
+  ["json", tn],
   ["yaml11", rs],
   ["yaml-1.1", rs]
 ]), ls = {
-  binary: Bt,
+  binary: jt,
   bool: Mt,
-  float: Ms,
-  floatExp: Ps,
+  float: Rs,
+  floatExp: Ms,
   floatNaN: Ds,
   floatTime: Gs,
-  int: js,
-  intHex: Us,
+  int: Us,
+  intHex: Ks,
   intOct: Bs,
-  intTime: Ys,
+  intTime: Ws,
   map: we,
   merge: V,
   null: ot,
   omap: Ut,
-  pairs: jt,
+  pairs: Bt,
   seq: $e,
   set: qt,
   timestamp: ht
-}, cn = {
-  "tag:yaml.org,2002:binary": Bt,
+}, hn = {
+  "tag:yaml.org,2002:binary": jt,
   "tag:yaml.org,2002:merge": V,
   "tag:yaml.org,2002:omap": Ut,
-  "tag:yaml.org,2002:pairs": jt,
+  "tag:yaml.org,2002:pairs": Bt,
   "tag:yaml.org,2002:set": qt,
   "tag:yaml.org,2002:timestamp": ht
 };
-function pt(s, e, t) {
+function ut(s, e, t) {
   const i = os.get(e);
   if (i && !s)
     return t && !i.includes(V) ? i.concat(V) : i.slice();
@@ -2569,23 +2569,23 @@ function pt(s, e, t) {
   return t && (n = n.concat(V)), n.reduce((a, r) => {
     const o = typeof r == "string" ? ls[r] : r;
     if (!o) {
-      const l = JSON.stringify(r), c = Object.keys(ls).map((p) => JSON.stringify(p)).join(", ");
+      const l = JSON.stringify(r), c = Object.keys(ls).map((u) => JSON.stringify(u)).join(", ");
       throw new Error(`Unknown custom tag ${l}; use one of ${c}`);
     }
     return a.includes(o) || a.push(o), a;
   }, []);
 }
-const hn = (s, e) => s.key < e.key ? -1 : s.key > e.key ? 1 : 0;
+const dn = (s, e) => s.key < e.key ? -1 : s.key > e.key ? 1 : 0;
 class Ht {
   constructor({ compat: e, customTags: t, merge: i, resolveKnownTags: n, schema: a, sortMapEntries: r, toStringDefaults: o }) {
-    this.compat = Array.isArray(e) ? pt(e, "compat") : e ? pt(null, e) : null, this.name = typeof a == "string" && a || "core", this.knownTags = n ? cn : {}, this.tags = pt(t, this.name, i), this.toStringOptions = o ?? null, Object.defineProperty(this, J, { value: we }), Object.defineProperty(this, H, { value: rt }), Object.defineProperty(this, ye, { value: $e }), this.sortMapEntries = typeof r == "function" ? r : r === !0 ? hn : null;
+    this.compat = Array.isArray(e) ? ut(e, "compat") : e ? ut(null, e) : null, this.name = typeof a == "string" && a || "core", this.knownTags = n ? hn : {}, this.tags = ut(t, this.name, i), this.toStringOptions = o ?? null, Object.defineProperty(this, J, { value: we }), Object.defineProperty(this, H, { value: rt }), Object.defineProperty(this, ye, { value: $e }), this.sortMapEntries = typeof r == "function" ? r : r === !0 ? dn : null;
   }
   clone() {
     const e = Object.create(Ht.prototype, Object.getOwnPropertyDescriptors(this));
     return e.tags = this.tags.slice(), e;
   }
 }
-function dn(s, e) {
+function pn(s, e) {
   const t = [];
   let i = e.directives === !0;
   if (e.directives !== !1 && s.directives) {
@@ -2593,7 +2593,7 @@ function dn(s, e) {
     l ? (t.push(l), i = !0) : s.directives.docStart && (i = !0);
   }
   i && t.push("---");
-  const n = Ns(s, e), { commentString: a } = n.options;
+  const n = Os(s, e), { commentString: a } = n.options;
   if (s.commentBefore) {
     t.length !== 1 && t.unshift("");
     const l = a(s.commentBefore);
@@ -2603,8 +2603,8 @@ function dn(s, e) {
   if (s.contents) {
     if (L(s.contents)) {
       if (s.contents.spaceBefore && i && t.push(""), s.contents.commentBefore) {
-        const p = a(s.contents.commentBefore);
-        t.push(F(p, ""));
+        const u = a(s.contents.commentBefore);
+        t.push(F(u, ""));
       }
       n.forceBlockIndent = !!s.comment, o = s.contents.comment;
     }
@@ -2628,7 +2628,7 @@ function dn(s, e) {
 `) + `
 `;
 }
-let Ws = class Js {
+let Js = class Qs {
   constructor(e, t, i) {
     this.commentBefore = null, this.comment = null, this.errors = [], this.warnings = [], Object.defineProperty(this, K, { value: vt });
     let n = null;
@@ -2653,7 +2653,7 @@ let Ws = class Js {
    * Custom Node values that inherit from `Object` still refer to their original instances.
    */
   clone() {
-    const e = Object.create(Js.prototype, {
+    const e = Object.create(Qs.prototype, {
       [K]: { value: vt }
     });
     return e.commentBefore = this.commentBefore, e.comment = this.comment, e.errors = this.errors.slice(), e.warnings = this.warnings.slice(), e.options = Object.assign({}, this.options), this.directives && (e.directives = this.directives.clone()), e.schema = this.schema.clone(), e.contents = L(this.contents) ? this.contents.clone(e.schema) : this.contents, this.range && (e.range = this.range.slice()), e;
@@ -2677,9 +2677,9 @@ let Ws = class Js {
    */
   createAlias(e, t) {
     if (!e.anchor) {
-      const i = ks(this);
+      const i = Ss(this);
       e.anchor = // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-      !t || i.has(t) ? Ss(t || "a", i) : t;
+      !t || i.has(t) ? _s(t || "a", i) : t;
     }
     return new Lt(e.anchor);
   }
@@ -2691,7 +2691,7 @@ let Ws = class Js {
       const g = (w) => typeof w == "number" || w instanceof String || w instanceof Number, b = t.filter(g).map(String);
       b.length > 0 && (t = t.concat(b)), n = t;
     } else i === void 0 && t && (i = t, t = void 0);
-    const { aliasDuplicateObjects: a, anchorPrefix: r, flow: o, keepUndefined: l, onTagObj: c, tag: p } = i ?? {}, { onAnchor: h, setAnchors: d, sourceObjects: f } = Bi(
+    const { aliasDuplicateObjects: a, anchorPrefix: r, flow: o, keepUndefined: l, onTagObj: c, tag: u } = i ?? {}, { onAnchor: h, setAnchors: d, sourceObjects: f } = Bi(
       this,
       // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
       r || "a"
@@ -2703,8 +2703,8 @@ let Ws = class Js {
       replacer: n,
       schema: this.schema,
       sourceObjects: f
-    }, u = Le(e, p, m);
-    return o && C(u) && (u.flow = !0), d(), u;
+    }, p = Le(e, u, m);
+    return o && C(p) && (p.flow = !0), d(), p;
   }
   /**
    * Convert a key and a value into a `Pair` using the current schema,
@@ -2712,7 +2712,7 @@ let Ws = class Js {
    */
   createPair(e, t, i = {}) {
     const n = this.createNode(e, null, i), a = this.createNode(t, null, i);
-    return new B(n, a);
+    return new j(n, a);
   }
   /**
    * Removes a value from the document.
@@ -2814,8 +2814,8 @@ let Ws = class Js {
       maxAliasCount: typeof n == "number" ? n : 100
     }, l = U(this.contents, t ?? "", o);
     if (typeof a == "function")
-      for (const { count: c, res: p } of o.anchors.values())
-        a(p, c);
+      for (const { count: c, res: u } of o.anchors.values())
+        a(u, c);
     return typeof r == "function" ? ce(r, { "": l }, "", l) : l;
   }
   /**
@@ -2835,7 +2835,7 @@ let Ws = class Js {
       const t = JSON.stringify(e.indent);
       throw new Error(`"indent" option must be a positive integer, not ${t}`);
     }
-    return dn(this, e);
+    return pn(this, e);
   }
 };
 function ae(s) {
@@ -2843,17 +2843,17 @@ function ae(s) {
     return !0;
   throw new Error("Expected a YAML collection as document contents");
 }
-class Qs extends Error {
+class Xs extends Error {
   constructor(e, t, i, n) {
     super(), this.name = e, this.code = i, this.message = n, this.pos = t;
   }
 }
-class Ae extends Qs {
+class _e extends Xs {
   constructor(e, t, i) {
     super("YAMLParseError", e, t, i);
   }
 }
-class un extends Qs {
+class un extends Xs {
   constructor(e, t, i) {
     super("YAMLWarning", e, t, i);
   }
@@ -2887,44 +2887,44 @@ ${c}
   }
 };
 function me(s, { flow: e, indicator: t, next: i, offset: n, onError: a, parentIndent: r, startOnNewline: o }) {
-  let l = !1, c = o, p = o, h = "", d = "", f = !1, m = !1, u = null, g = null, b = null, w = null, k = null, A = null, _ = null;
+  let l = !1, c = o, u = o, h = "", d = "", f = !1, m = !1, p = null, g = null, b = null, w = null, S = null, _ = null, A = null;
   for (const v of s)
-    switch (m && (v.type !== "space" && v.type !== "newline" && v.type !== "comma" && a(v.offset, "MISSING_CHAR", "Tags and anchors must be separated from the next token by white space"), m = !1), u && (c && v.type !== "comment" && v.type !== "newline" && a(u, "TAB_AS_INDENT", "Tabs are not allowed as indentation"), u = null), v.type) {
+    switch (m && (v.type !== "space" && v.type !== "newline" && v.type !== "comma" && a(v.offset, "MISSING_CHAR", "Tags and anchors must be separated from the next token by white space"), m = !1), p && (c && v.type !== "comment" && v.type !== "newline" && a(p, "TAB_AS_INDENT", "Tabs are not allowed as indentation"), p = null), v.type) {
       case "space":
-        !e && (t !== "doc-start" || i?.type !== "flow-collection") && v.source.includes("	") && (u = v), p = !0;
+        !e && (t !== "doc-start" || i?.type !== "flow-collection") && v.source.includes("	") && (p = v), u = !0;
         break;
       case "comment": {
-        p || a(v, "MISSING_CHAR", "Comments must be separated from other tokens by white space characters");
-        const P = v.source.substring(1) || " ";
-        h ? h += d + P : h = P, d = "", c = !1;
+        u || a(v, "MISSING_CHAR", "Comments must be separated from other tokens by white space characters");
+        const D = v.source.substring(1) || " ";
+        h ? h += d + D : h = D, d = "", c = !1;
         break;
       }
       case "newline":
-        c ? h ? h += v.source : (!A || t !== "seq-item-ind") && (l = !0) : d += v.source, c = !0, f = !0, (g || b) && (w = v), p = !0;
+        c ? h ? h += v.source : (!_ || t !== "seq-item-ind") && (l = !0) : d += v.source, c = !0, f = !0, (g || b) && (w = v), u = !0;
         break;
       case "anchor":
-        g && a(v, "MULTIPLE_ANCHORS", "A node can have at most one anchor"), v.source.endsWith(":") && a(v.offset + v.source.length - 1, "BAD_ALIAS", "Anchor ending in : is ambiguous", !0), g = v, _ ?? (_ = v.offset), c = !1, p = !1, m = !0;
+        g && a(v, "MULTIPLE_ANCHORS", "A node can have at most one anchor"), v.source.endsWith(":") && a(v.offset + v.source.length - 1, "BAD_ALIAS", "Anchor ending in : is ambiguous", !0), g = v, A ?? (A = v.offset), c = !1, u = !1, m = !0;
         break;
       case "tag": {
-        b && a(v, "MULTIPLE_TAGS", "A node can have at most one tag"), b = v, _ ?? (_ = v.offset), c = !1, p = !1, m = !0;
+        b && a(v, "MULTIPLE_TAGS", "A node can have at most one tag"), b = v, A ?? (A = v.offset), c = !1, u = !1, m = !0;
         break;
       }
       case t:
-        (g || b) && a(v, "BAD_PROP_ORDER", `Anchors and tags must be after the ${v.source} indicator`), A && a(v, "UNEXPECTED_TOKEN", `Unexpected ${v.source} in ${e ?? "collection"}`), A = v, c = t === "seq-item-ind" || t === "explicit-key-ind", p = !1;
+        (g || b) && a(v, "BAD_PROP_ORDER", `Anchors and tags must be after the ${v.source} indicator`), _ && a(v, "UNEXPECTED_TOKEN", `Unexpected ${v.source} in ${e ?? "collection"}`), _ = v, c = t === "seq-item-ind" || t === "explicit-key-ind", u = !1;
         break;
       case "comma":
         if (e) {
-          k && a(v, "UNEXPECTED_TOKEN", `Unexpected , in ${e}`), k = v, c = !1, p = !1;
+          S && a(v, "UNEXPECTED_TOKEN", `Unexpected , in ${e}`), S = v, c = !1, u = !1;
           break;
         }
       // else fallthrough
       default:
-        a(v, "UNEXPECTED_TOKEN", `Unexpected ${v.type} token`), c = !1, p = !1;
+        a(v, "UNEXPECTED_TOKEN", `Unexpected ${v.type} token`), c = !1, u = !1;
     }
   const N = s[s.length - 1], T = N ? N.offset + N.source.length : n;
-  return m && i && i.type !== "space" && i.type !== "newline" && i.type !== "comma" && (i.type !== "scalar" || i.source !== "") && a(i.offset, "MISSING_CHAR", "Tags and anchors must be separated from the next token by white space"), u && (c && u.indent <= r || i?.type === "block-map" || i?.type === "block-seq") && a(u, "TAB_AS_INDENT", "Tabs are not allowed as indentation"), {
-    comma: k,
-    found: A,
+  return m && i && i.type !== "space" && i.type !== "newline" && i.type !== "comma" && (i.type !== "scalar" || i.source !== "") && a(i.offset, "MISSING_CHAR", "Tags and anchors must be separated from the next token by white space"), p && (c && p.indent <= r || i?.type === "block-map" || i?.type === "block-seq") && a(p, "TAB_AS_INDENT", "Tabs are not allowed as indentation"), {
+    comma: S,
+    found: _,
     spaceBefore: l,
     comment: h,
     hasNewline: f,
@@ -2932,10 +2932,10 @@ function me(s, { flow: e, indicator: t, next: i, offset: n, onError: a, parentIn
     tag: b,
     newlineAfterProp: w,
     end: T,
-    start: _ ?? T
+    start: A ?? T
   };
 }
-function De(s) {
+function Pe(s) {
   if (!s)
     return null;
   switch (s.type) {
@@ -2962,7 +2962,7 @@ function De(s) {
             if (t.type === "newline")
               return !0;
         }
-        if (De(e.key) || De(e.value))
+        if (Pe(e.key) || Pe(e.value))
           return !0;
       }
       return !1;
@@ -2973,10 +2973,10 @@ function De(s) {
 function xt(s, e, t) {
   if (e?.type === "flow-collection") {
     const i = e.end[0];
-    i.indent === s && (i.source === "]" || i.source === "}") && De(e) && t(i, "BAD_INDENT", "Flow end indicator should be more indented than parent", !0);
+    i.indent === s && (i.source === "]" || i.source === "}") && Pe(e) && t(i, "BAD_INDENT", "Flow end indicator should be more indented than parent", !0);
   }
 }
-function Xs(s, e, t) {
+function Zs(s, e, t) {
   const { uniqueKeys: i } = s.options;
   if (i === !1)
     return !1;
@@ -2984,31 +2984,31 @@ function Xs(s, e, t) {
   return e.some((a) => n(a.key, t));
 }
 const hs = "All mapping items must start at the same column";
-function pn({ composeNode: s, composeEmptyNode: e }, t, i, n, a) {
-  const r = a?.nodeClass ?? j, o = new r(t.schema);
+function fn({ composeNode: s, composeEmptyNode: e }, t, i, n, a) {
+  const r = a?.nodeClass ?? B, o = new r(t.schema);
   t.atRoot && (t.atRoot = !1);
   let l = i.offset, c = null;
-  for (const p of i.items) {
-    const { start: h, key: d, sep: f, value: m } = p, u = me(h, {
+  for (const u of i.items) {
+    const { start: h, key: d, sep: f, value: m } = u, p = me(h, {
       indicator: "explicit-key-ind",
       next: d ?? f?.[0],
       offset: l,
       onError: n,
       parentIndent: i.indent,
       startOnNewline: !0
-    }), g = !u.found;
+    }), g = !p.found;
     if (g) {
-      if (d && (d.type === "block-seq" ? n(l, "BLOCK_AS_IMPLICIT_KEY", "A block sequence may not be used as an implicit map key") : "indent" in d && d.indent !== i.indent && n(l, "BAD_INDENT", hs)), !u.anchor && !u.tag && !f) {
-        c = u.end, u.comment && (o.comment ? o.comment += `
-` + u.comment : o.comment = u.comment);
+      if (d && (d.type === "block-seq" ? n(l, "BLOCK_AS_IMPLICIT_KEY", "A block sequence may not be used as an implicit map key") : "indent" in d && d.indent !== i.indent && n(l, "BAD_INDENT", hs)), !p.anchor && !p.tag && !f) {
+        c = p.end, p.comment && (o.comment ? o.comment += `
+` + p.comment : o.comment = p.comment);
         continue;
       }
-      (u.newlineAfterProp || De(d)) && n(d ?? h[h.length - 1], "MULTILINE_IMPLICIT_KEY", "Implicit keys need to be on a single line");
-    } else u.found?.indent !== i.indent && n(l, "BAD_INDENT", hs);
+      (p.newlineAfterProp || Pe(d)) && n(d ?? h[h.length - 1], "MULTILINE_IMPLICIT_KEY", "Implicit keys need to be on a single line");
+    } else p.found?.indent !== i.indent && n(l, "BAD_INDENT", hs);
     t.atKey = !0;
-    const b = u.end, w = d ? s(t, d, u, n) : e(t, b, h, null, u, n);
-    t.schema.compat && xt(i.indent, d, n), t.atKey = !1, Xs(t, o.items, w) && n(b, "DUPLICATE_KEY", "Map keys must be unique");
-    const k = me(f ?? [], {
+    const b = p.end, w = d ? s(t, d, p, n) : e(t, b, h, null, p, n);
+    t.schema.compat && xt(i.indent, d, n), t.atKey = !1, Zs(t, o.items, w) && n(b, "DUPLICATE_KEY", "Map keys must be unique");
+    const S = me(f ?? [], {
       indicator: "map-value-ind",
       next: m,
       offset: w.range[2],
@@ -3016,27 +3016,27 @@ function pn({ composeNode: s, composeEmptyNode: e }, t, i, n, a) {
       parentIndent: i.indent,
       startOnNewline: !d || d.type === "block-scalar"
     });
-    if (l = k.end, k.found) {
-      g && (m?.type === "block-map" && !k.hasNewline && n(l, "BLOCK_AS_IMPLICIT_KEY", "Nested mappings are not allowed in compact mappings"), t.options.strict && u.start < k.found.offset - 1024 && n(w.range, "KEY_OVER_1024_CHARS", "The : indicator must be at most 1024 chars after the start of an implicit block mapping key"));
-      const A = m ? s(t, m, k, n) : e(t, l, f, null, k, n);
-      t.schema.compat && xt(i.indent, m, n), l = A.range[2];
-      const _ = new B(w, A);
-      t.options.keepSourceTokens && (_.srcToken = p), o.items.push(_);
+    if (l = S.end, S.found) {
+      g && (m?.type === "block-map" && !S.hasNewline && n(l, "BLOCK_AS_IMPLICIT_KEY", "Nested mappings are not allowed in compact mappings"), t.options.strict && p.start < S.found.offset - 1024 && n(w.range, "KEY_OVER_1024_CHARS", "The : indicator must be at most 1024 chars after the start of an implicit block mapping key"));
+      const _ = m ? s(t, m, S, n) : e(t, l, f, null, S, n);
+      t.schema.compat && xt(i.indent, m, n), l = _.range[2];
+      const A = new j(w, _);
+      t.options.keepSourceTokens && (A.srcToken = u), o.items.push(A);
     } else {
-      g && n(w.range, "MISSING_CHAR", "Implicit map keys need to be followed by map values"), k.comment && (w.comment ? w.comment += `
-` + k.comment : w.comment = k.comment);
-      const A = new B(w);
-      t.options.keepSourceTokens && (A.srcToken = p), o.items.push(A);
+      g && n(w.range, "MISSING_CHAR", "Implicit map keys need to be followed by map values"), S.comment && (w.comment ? w.comment += `
+` + S.comment : w.comment = S.comment);
+      const _ = new j(w);
+      t.options.keepSourceTokens && (_.srcToken = u), o.items.push(_);
     }
   }
   return c && c < l && n(c, "IMPOSSIBLE", "Map comment with trailing content"), o.range = [i.offset, l, c ?? l], o;
 }
-function fn({ composeNode: s, composeEmptyNode: e }, t, i, n, a) {
+function gn({ composeNode: s, composeEmptyNode: e }, t, i, n, a) {
   const r = a?.nodeClass ?? ie, o = new r(t.schema);
   t.atRoot && (t.atRoot = !1), t.atKey && (t.atKey = !1);
   let l = i.offset, c = null;
-  for (const { start: p, value: h } of i.items) {
-    const d = me(p, {
+  for (const { start: u, value: h } of i.items) {
+    const d = me(u, {
       indicator: "seq-item-ind",
       next: h,
       offset: l,
@@ -3051,12 +3051,12 @@ function fn({ composeNode: s, composeEmptyNode: e }, t, i, n, a) {
         c = d.end, d.comment && (o.comment = d.comment);
         continue;
       }
-    const f = h ? s(t, h, d, n) : e(t, d.end, p, null, d, n);
+    const f = h ? s(t, h, d, n) : e(t, d.end, u, null, d, n);
     t.schema.compat && xt(i.indent, h, n), l = f.range[2], o.items.push(f);
   }
   return o.range = [i.offset, l, c ?? l], o;
 }
-function je(s, e, t, i) {
+function Be(s, e, t, i) {
   let n = "";
   if (s) {
     let a = !1, r = "";
@@ -3068,8 +3068,8 @@ function je(s, e, t, i) {
           break;
         case "comment": {
           t && !a && i(o, "MISSING_CHAR", "Comments must be separated from other tokens by white space characters");
-          const p = l.substring(1) || " ";
-          n ? n += r + p : n = p, r = "";
+          const u = l.substring(1) || " ";
+          n ? n += r + u : n = u, r = "";
           break;
         }
         case "newline":
@@ -3084,30 +3084,30 @@ function je(s, e, t, i) {
   return { comment: n, offset: e };
 }
 const ft = "Block collections are not allowed within flow collections", gt = (s) => s && (s.type === "block-map" || s.type === "block-seq");
-function gn({ composeNode: s, composeEmptyNode: e }, t, i, n, a) {
-  const r = i.start.source === "{", o = r ? "flow map" : "flow sequence", l = a?.nodeClass ?? (r ? j : ie), c = new l(t.schema);
+function mn({ composeNode: s, composeEmptyNode: e }, t, i, n, a) {
+  const r = i.start.source === "{", o = r ? "flow map" : "flow sequence", l = a?.nodeClass ?? (r ? B : ie), c = new l(t.schema);
   c.flow = !0;
-  const p = t.atRoot;
-  p && (t.atRoot = !1), t.atKey && (t.atKey = !1);
+  const u = t.atRoot;
+  u && (t.atRoot = !1), t.atKey && (t.atKey = !1);
   let h = i.offset + i.start.source.length;
   for (let g = 0; g < i.items.length; ++g) {
-    const b = i.items[g], { start: w, key: k, sep: A, value: _ } = b, N = me(w, {
+    const b = i.items[g], { start: w, key: S, sep: _, value: A } = b, N = me(w, {
       flow: o,
       indicator: "explicit-key-ind",
-      next: k ?? A?.[0],
+      next: S ?? _?.[0],
       offset: h,
       onError: n,
       parentIndent: i.indent,
       startOnNewline: !1
     });
     if (!N.found) {
-      if (!N.anchor && !N.tag && !A && !_) {
+      if (!N.anchor && !N.tag && !_ && !A) {
         g === 0 && N.comma ? n(N.comma, "UNEXPECTED_TOKEN", `Unexpected , in ${o}`) : g < i.items.length - 1 && n(N.start, "UNEXPECTED_TOKEN", `Unexpected empty item in ${o}`), N.comment && (c.comment ? c.comment += `
 ` + N.comment : c.comment = N.comment), h = N.end;
         continue;
       }
-      !r && t.options.strict && De(k) && n(
-        k,
+      !r && t.options.strict && Pe(S) && n(
+        S,
         // checked by containsNewline()
         "MULTILINE_IMPLICIT_KEY",
         "Implicit keys of flow sequence pairs need to be on a single line"
@@ -3130,84 +3130,84 @@ function gn({ composeNode: s, composeEmptyNode: e }, t, i, n, a) {
         }
       if (T) {
         let v = c.items[c.items.length - 1];
-        D(v) && (v = v.value ?? v.key), v.comment ? v.comment += `
+        P(v) && (v = v.value ?? v.key), v.comment ? v.comment += `
 ` + T : v.comment = T, N.comment = N.comment.substring(T.length + 1);
       }
     }
-    if (!r && !A && !N.found) {
-      const T = _ ? s(t, _, N, n) : e(t, N.end, A, null, N, n);
-      c.items.push(T), h = T.range[2], gt(_) && n(T.range, "BLOCK_IN_FLOW", ft);
+    if (!r && !_ && !N.found) {
+      const T = A ? s(t, A, N, n) : e(t, N.end, _, null, N, n);
+      c.items.push(T), h = T.range[2], gt(A) && n(T.range, "BLOCK_IN_FLOW", ft);
     } else {
       t.atKey = !0;
-      const T = N.end, v = k ? s(t, k, N, n) : e(t, T, w, null, N, n);
-      gt(k) && n(v.range, "BLOCK_IN_FLOW", ft), t.atKey = !1;
-      const P = me(A ?? [], {
+      const T = N.end, v = S ? s(t, S, N, n) : e(t, T, w, null, N, n);
+      gt(S) && n(v.range, "BLOCK_IN_FLOW", ft), t.atKey = !1;
+      const D = me(_ ?? [], {
         flow: o,
         indicator: "map-value-ind",
-        next: _,
+        next: A,
         offset: v.range[2],
         onError: n,
         parentIndent: i.indent,
         startOnNewline: !1
       });
-      if (P.found) {
+      if (D.found) {
         if (!r && !N.found && t.options.strict) {
-          if (A)
-            for (const M of A) {
-              if (M === P.found)
+          if (_)
+            for (const M of _) {
+              if (M === D.found)
                 break;
               if (M.type === "newline") {
                 n(M, "MULTILINE_IMPLICIT_KEY", "Implicit keys of flow sequence pairs need to be on a single line");
                 break;
               }
             }
-          N.start < P.found.offset - 1024 && n(P.found, "KEY_OVER_1024_CHARS", "The : indicator must be at most 1024 chars after the start of an implicit flow sequence key");
+          N.start < D.found.offset - 1024 && n(D.found, "KEY_OVER_1024_CHARS", "The : indicator must be at most 1024 chars after the start of an implicit flow sequence key");
         }
-      } else _ && ("source" in _ && _.source?.[0] === ":" ? n(_, "MISSING_CHAR", `Missing space after : in ${o}`) : n(P.start, "MISSING_CHAR", `Missing , or : between ${o} items`));
-      const Y = _ ? s(t, _, P, n) : P.found ? e(t, P.end, A, null, P, n) : null;
-      Y ? gt(_) && n(Y.range, "BLOCK_IN_FLOW", ft) : P.comment && (v.comment ? v.comment += `
-` + P.comment : v.comment = P.comment);
-      const ne = new B(v, Y);
+      } else A && ("source" in A && A.source?.[0] === ":" ? n(A, "MISSING_CHAR", `Missing space after : in ${o}`) : n(D.start, "MISSING_CHAR", `Missing , or : between ${o} items`));
+      const Y = A ? s(t, A, D, n) : D.found ? e(t, D.end, _, null, D, n) : null;
+      Y ? gt(A) && n(Y.range, "BLOCK_IN_FLOW", ft) : D.comment && (v.comment ? v.comment += `
+` + D.comment : v.comment = D.comment);
+      const ne = new j(v, Y);
       if (t.options.keepSourceTokens && (ne.srcToken = b), r) {
         const M = c;
-        Xs(t, M.items, v) && n(T, "DUPLICATE_KEY", "Map keys must be unique"), M.items.push(ne);
+        Zs(t, M.items, v) && n(T, "DUPLICATE_KEY", "Map keys must be unique"), M.items.push(ne);
       } else {
-        const M = new j(t.schema);
+        const M = new B(t.schema);
         M.flow = !0, M.items.push(ne);
         const Vt = (Y ?? v).range;
         M.range = [v.range[0], Vt[1], Vt[2]], c.items.push(M);
       }
-      h = Y ? Y.range[2] : P.end;
+      h = Y ? Y.range[2] : D.end;
     }
   }
   const d = r ? "}" : "]", [f, ...m] = i.end;
-  let u = h;
+  let p = h;
   if (f?.source === d)
-    u = f.offset + f.source.length;
+    p = f.offset + f.source.length;
   else {
-    const g = o[0].toUpperCase() + o.substring(1), b = p ? `${g} must end with a ${d}` : `${g} in block collection must be sufficiently indented and end with a ${d}`;
-    n(h, p ? "MISSING_CHAR" : "BAD_INDENT", b), f && f.source.length !== 1 && m.unshift(f);
+    const g = o[0].toUpperCase() + o.substring(1), b = u ? `${g} must end with a ${d}` : `${g} in block collection must be sufficiently indented and end with a ${d}`;
+    n(h, u ? "MISSING_CHAR" : "BAD_INDENT", b), f && f.source.length !== 1 && m.unshift(f);
   }
   if (m.length > 0) {
-    const g = je(m, u, t.options.strict, n);
+    const g = Be(m, p, t.options.strict, n);
     g.comment && (c.comment ? c.comment += `
-` + g.comment : c.comment = g.comment), c.range = [i.offset, u, g.offset];
+` + g.comment : c.comment = g.comment), c.range = [i.offset, p, g.offset];
   } else
-    c.range = [i.offset, u, u];
+    c.range = [i.offset, p, p];
   return c;
 }
 function mt(s, e, t, i, n, a) {
-  const r = t.type === "block-map" ? pn(s, e, t, i, a) : t.type === "block-seq" ? fn(s, e, t, i, a) : gn(s, e, t, i, a), o = r.constructor;
+  const r = t.type === "block-map" ? fn(s, e, t, i, a) : t.type === "block-seq" ? gn(s, e, t, i, a) : mn(s, e, t, i, a), o = r.constructor;
   return n === "!" || n === o.tagName ? (r.tag = o.tagName, r) : (n && (r.tag = n), r);
 }
-function mn(s, e, t, i, n) {
+function yn(s, e, t, i, n) {
   const a = i.tag, r = a ? e.directives.tagName(a.source, (d) => n(a, "TAG_RESOLVE_FAILED", d)) : null;
   if (t.type === "block-seq") {
     const { anchor: d, newlineAfterProp: f } = i, m = d && a ? d.offset > a.offset ? d : a : d ?? a;
     m && (!f || f.offset < m.offset) && n(m, "MISSING_CHAR", "Missing newline after block sequence props");
   }
   const o = t.type === "block-map" ? "map" : t.type === "block-seq" ? "seq" : t.start.source === "{" ? "map" : "seq";
-  if (!a || !r || r === "!" || r === j.tagName && o === "map" || r === ie.tagName && o === "seq")
+  if (!a || !r || r === "!" || r === B.tagName && o === "map" || r === ie.tagName && o === "seq")
     return mt(s, e, t, n, r);
   let l = e.schema.tags.find((d) => d.tag === r && d.collection === o);
   if (!l) {
@@ -3217,52 +3217,52 @@ function mn(s, e, t, i, n) {
     else
       return d ? n(a, "BAD_COLLECTION_TYPE", `${d.tag} used for ${o} collection, but expects ${d.collection ?? "scalar"}`, !0) : n(a, "TAG_RESOLVE_FAILED", `Unresolved tag: ${r}`, !0), mt(s, e, t, n, r);
   }
-  const c = mt(s, e, t, n, r, l), p = l.resolve?.(c, (d) => n(a, "TAG_RESOLVE_FAILED", d), e.options) ?? c, h = L(p) ? p : new E(p);
+  const c = mt(s, e, t, n, r, l), u = l.resolve?.(c, (d) => n(a, "TAG_RESOLVE_FAILED", d), e.options) ?? c, h = L(u) ? u : new E(u);
   return h.range = c.range, h.tag = r, l?.format && (h.format = l.format), h;
 }
-function yn(s, e, t) {
-  const i = e.offset, n = vn(e, s.options.strict, t);
+function vn(s, e, t) {
+  const i = e.offset, n = bn(e, s.options.strict, t);
   if (!n)
     return { value: "", type: null, comment: "", range: [i, i, i] };
-  const a = n.mode === ">" ? E.BLOCK_FOLDED : E.BLOCK_LITERAL, r = e.source ? bn(e.source) : [];
+  const a = n.mode === ">" ? E.BLOCK_FOLDED : E.BLOCK_LITERAL, r = e.source ? wn(e.source) : [];
   let o = r.length;
-  for (let u = r.length - 1; u >= 0; --u) {
-    const g = r[u][1];
+  for (let p = r.length - 1; p >= 0; --p) {
+    const g = r[p][1];
     if (g === "" || g === "\r")
-      o = u;
+      o = p;
     else
       break;
   }
   if (o === 0) {
-    const u = n.chomp === "+" && r.length > 0 ? `
+    const p = n.chomp === "+" && r.length > 0 ? `
 `.repeat(Math.max(1, r.length - 1)) : "";
     let g = i + n.length;
-    return e.source && (g += e.source.length), { value: u, type: a, comment: n.comment, range: [i, g, g] };
+    return e.source && (g += e.source.length), { value: p, type: a, comment: n.comment, range: [i, g, g] };
   }
-  let l = e.indent + n.indent, c = e.offset + n.length, p = 0;
-  for (let u = 0; u < o; ++u) {
-    const [g, b] = r[u];
+  let l = e.indent + n.indent, c = e.offset + n.length, u = 0;
+  for (let p = 0; p < o; ++p) {
+    const [g, b] = r[p];
     if (b === "" || b === "\r")
       n.indent === 0 && g.length > l && (l = g.length);
     else {
-      g.length < l && t(c + g.length, "MISSING_CHAR", "Block scalars with more-indented leading empty lines must use an explicit indentation indicator"), n.indent === 0 && (l = g.length), p = u, l === 0 && !s.atRoot && t(c, "BAD_INDENT", "Block scalar values in collections must be indented");
+      g.length < l && t(c + g.length, "MISSING_CHAR", "Block scalars with more-indented leading empty lines must use an explicit indentation indicator"), n.indent === 0 && (l = g.length), u = p, l === 0 && !s.atRoot && t(c, "BAD_INDENT", "Block scalar values in collections must be indented");
       break;
     }
     c += g.length + b.length + 1;
   }
-  for (let u = r.length - 1; u >= o; --u)
-    r[u][0].length > l && (o = u + 1);
+  for (let p = r.length - 1; p >= o; --p)
+    r[p][0].length > l && (o = p + 1);
   let h = "", d = "", f = !1;
-  for (let u = 0; u < p; ++u)
-    h += r[u][0].slice(l) + `
+  for (let p = 0; p < u; ++p)
+    h += r[p][0].slice(l) + `
 `;
-  for (let u = p; u < o; ++u) {
-    let [g, b] = r[u];
+  for (let p = u; p < o; ++p) {
+    let [g, b] = r[p];
     c += g.length + b.length + 1;
     const w = b[b.length - 1] === "\r";
     if (w && (b = b.slice(0, -1)), b && g.length < l) {
-      const A = `Block scalar lines must not be less indented than their ${n.indent ? "explicit indentation indicator" : "first line"}`;
-      t(c - b.length - (w ? 2 : 1), "BAD_INDENT", A), g = "";
+      const _ = `Block scalar lines must not be less indented than their ${n.indent ? "explicit indentation indicator" : "first line"}`;
+      t(c - b.length - (w ? 2 : 1), "BAD_INDENT", _), g = "";
     }
     a === E.BLOCK_LITERAL ? (h += d + g.slice(l) + b, d = `
 `) : g.length > l || b[0] === "	" ? (d === " " ? d = `
@@ -3279,9 +3279,9 @@ function yn(s, e, t) {
     case "-":
       break;
     case "+":
-      for (let u = o; u < r.length; ++u)
+      for (let p = o; p < r.length; ++p)
         h += `
-` + r[u][0].slice(l);
+` + r[p][0].slice(l);
       h[h.length - 1] !== `
 ` && (h += `
 `);
@@ -3293,7 +3293,7 @@ function yn(s, e, t) {
   const m = i + n.length + e.source.length;
   return { value: h, type: a, comment: n.comment, range: [i, m, m] };
 }
-function vn({ offset: s, props: e }, t, i) {
+function bn({ offset: s, props: e }, t, i) {
   if (e[0].type !== "block-scalar-header")
     return i(e[0], "IMPOSSIBLE", "Block scalar header not found"), null;
   const { source: n } = e[0], a = n[0];
@@ -3308,7 +3308,7 @@ function vn({ offset: s, props: e }, t, i) {
     }
   }
   l !== -1 && i(l, "UNEXPECTED_TOKEN", `Block scalar header includes extra characters: ${n}`);
-  let c = !1, p = "", h = n.length;
+  let c = !1, u = "", h = n.length;
   for (let d = 1; d < e.length; ++d) {
     const f = e[d];
     switch (f.type) {
@@ -3319,7 +3319,7 @@ function vn({ offset: s, props: e }, t, i) {
         h += f.source.length;
         break;
       case "comment":
-        t && !c && i(f, "MISSING_CHAR", "Comments must be separated from other tokens by white space characters"), h += f.source.length, p = f.source.substring(1);
+        t && !c && i(f, "MISSING_CHAR", "Comments must be separated from other tokens by white space characters"), h += f.source.length, u = f.source.substring(1);
         break;
       case "error":
         i(f, "UNEXPECTED_TOKEN", f.message), h += f.source.length;
@@ -3328,32 +3328,32 @@ function vn({ offset: s, props: e }, t, i) {
       default: {
         const m = `Unexpected token in block scalar header: ${f.type}`;
         i(f, "UNEXPECTED_TOKEN", m);
-        const u = f.source;
-        u && typeof u == "string" && (h += u.length);
+        const p = f.source;
+        p && typeof p == "string" && (h += p.length);
       }
     }
   }
-  return { mode: a, indent: r, chomp: o, comment: p, length: h };
+  return { mode: a, indent: r, chomp: o, comment: u, length: h };
 }
-function bn(s) {
+function wn(s) {
   const e = s.split(/\n( *)/), t = e[0], i = t.match(/^( *)/), a = [i?.[1] ? [i[1], t.slice(i[1].length)] : ["", t]];
   for (let r = 1; r < e.length; r += 2)
     a.push([e[r], e[r + 1]]);
   return a;
 }
-function wn(s, e, t) {
+function $n(s, e, t) {
   const { offset: i, type: n, source: a, end: r } = s;
   let o, l;
   const c = (d, f, m) => t(i + d, f, m);
   switch (n) {
     case "scalar":
-      o = E.PLAIN, l = $n(a, c);
+      o = E.PLAIN, l = xn(a, c);
       break;
     case "single-quoted-scalar":
-      o = E.QUOTE_SINGLE, l = xn(a, c);
+      o = E.QUOTE_SINGLE, l = kn(a, c);
       break;
     case "double-quoted-scalar":
-      o = E.QUOTE_DOUBLE, l = kn(a, c);
+      o = E.QUOTE_DOUBLE, l = Sn(a, c);
       break;
     /* istanbul ignore next should not happen */
     default:
@@ -3364,15 +3364,15 @@ function wn(s, e, t) {
         range: [i, i + a.length, i + a.length]
       };
   }
-  const p = i + a.length, h = je(r, p, e, t);
+  const u = i + a.length, h = Be(r, u, e, t);
   return {
     value: l,
     type: o,
     comment: h.comment,
-    range: [i, p, h.offset]
+    range: [i, u, h.offset]
   };
 }
-function $n(s, e) {
+function xn(s, e) {
   let t = "";
   switch (s[0]) {
     /* istanbul ignore next should not happen */
@@ -3396,12 +3396,12 @@ function $n(s, e) {
       break;
     }
   }
-  return t && e(0, "BAD_SCALAR_START", `Plain value cannot start with ${t}`), Zs(s);
+  return t && e(0, "BAD_SCALAR_START", `Plain value cannot start with ${t}`), ei(s);
 }
-function xn(s, e) {
-  return (s[s.length - 1] !== "'" || s.length === 1) && e(s.length, "MISSING_CHAR", "Missing closing 'quote"), Zs(s.slice(1, -1)).replace(/''/g, "'");
+function kn(s, e) {
+  return (s[s.length - 1] !== "'" || s.length === 1) && e(s.length, "MISSING_CHAR", "Missing closing 'quote"), ei(s.slice(1, -1)).replace(/''/g, "'");
 }
-function Zs(s) {
+function ei(s) {
   let e, t;
   try {
     e = new RegExp(`(.*?)(?<![ 	])[ 	]*\r?
@@ -3421,7 +3421,7 @@ function Zs(s) {
   const o = /[ \t]*(.*)/sy;
   return o.lastIndex = r, i = o.exec(s), n + a + (i?.[1] ?? "");
 }
-function kn(s, e) {
+function Sn(s, e) {
   let t = "";
   for (let i = 1; i < s.length - 1; ++i) {
     const n = s[i];
@@ -3429,7 +3429,7 @@ function kn(s, e) {
 `))
       if (n === `
 `) {
-        const { fold: a, offset: r } = Sn(s, i);
+        const { fold: a, offset: r } = _n(s, i);
         t += a, i = r;
       } else if (n === "\\") {
         let a = s[++i];
@@ -3446,7 +3446,7 @@ function kn(s, e) {
             a = s[++i + 1];
         else if (a === "x" || a === "u" || a === "U") {
           const o = a === "x" ? 2 : a === "u" ? 4 : 8;
-          t += _n(s, i + 1, o, e), i += o;
+          t += En(s, i + 1, o, e), i += o;
         } else {
           const o = s.substr(i - 1, 2);
           e(i - 1, "BAD_DQ_ESCAPE", `Invalid escape sequence ${o}`), t += o;
@@ -3464,7 +3464,7 @@ function kn(s, e) {
   }
   return (s[s.length - 1] !== '"' || s.length === 1) && e(s.length, "MISSING_CHAR", 'Missing closing "quote'), t;
 }
-function Sn(s, e) {
+function _n(s, e) {
   let t = "", i = s[e + 1];
   for (; (i === " " || i === "	" || i === `
 ` || i === "\r") && !(i === "\r" && s[e + 2] !== `
@@ -3508,7 +3508,7 @@ const An = {
   "\\": "\\",
   "	": "	"
 };
-function _n(s, e, t, i) {
+function En(s, e, t, i) {
   const n = s.substr(e, t), r = n.length === t && /^[0-9a-fA-F]+$/.test(n) ? parseInt(n, 16) : NaN;
   try {
     return String.fromCodePoint(r);
@@ -3517,21 +3517,21 @@ function _n(s, e, t, i) {
     return i(e - 2, "BAD_DQ_ESCAPE", `Invalid escape sequence ${o}`), o;
   }
 }
-function ei(s, e, t, i) {
-  const { value: n, type: a, comment: r, range: o } = e.type === "block-scalar" ? yn(s, e, i) : wn(e, s.options.strict, i), l = t ? s.directives.tagName(t.source, (h) => i(t, "TAG_RESOLVE_FAILED", h)) : null;
+function ti(s, e, t, i) {
+  const { value: n, type: a, comment: r, range: o } = e.type === "block-scalar" ? vn(s, e, i) : $n(e, s.options.strict, i), l = t ? s.directives.tagName(t.source, (h) => i(t, "TAG_RESOLVE_FAILED", h)) : null;
   let c;
-  s.options.stringKeys && s.atKey ? c = s.schema[H] : l ? c = En(s.schema, n, l, t, i) : e.type === "scalar" ? c = Nn(s, n, e, i) : c = s.schema[H];
-  let p;
+  s.options.stringKeys && s.atKey ? c = s.schema[H] : l ? c = Nn(s.schema, n, l, t, i) : e.type === "scalar" ? c = On(s, n, e, i) : c = s.schema[H];
+  let u;
   try {
     const h = c.resolve(n, (d) => i(t ?? e, "TAG_RESOLVE_FAILED", d), s.options);
-    p = I(h) ? h : new E(h);
+    u = I(h) ? h : new E(h);
   } catch (h) {
     const d = h instanceof Error ? h.message : String(h);
-    i(t ?? e, "TAG_RESOLVE_FAILED", d), p = new E(n);
+    i(t ?? e, "TAG_RESOLVE_FAILED", d), u = new E(n);
   }
-  return p.range = o, p.source = n, a && (p.type = a), l && (p.tag = l), c.format && (p.format = c.format), r && (p.comment = r), p;
+  return u.range = o, u.source = n, a && (u.type = a), l && (u.tag = l), c.format && (u.format = c.format), r && (u.comment = r), u;
 }
-function En(s, e, t, i, n) {
+function Nn(s, e, t, i, n) {
   if (t === "!")
     return s[H];
   const a = [];
@@ -3547,18 +3547,18 @@ function En(s, e, t, i, n) {
   const r = s.knownTags[t];
   return r && !r.collection ? (s.tags.push(Object.assign({}, r, { default: !1, test: void 0 })), r) : (n(i, "TAG_RESOLVE_FAILED", `Unresolved tag: ${t}`, t !== "tag:yaml.org,2002:str"), s[H]);
 }
-function Nn({ atKey: s, directives: e, schema: t }, i, n, a) {
+function On({ atKey: s, directives: e, schema: t }, i, n, a) {
   const r = t.tags.find((o) => (o.default === !0 || s && o.default === "key") && o.test?.test(i)) || t[H];
   if (t.compat) {
     const o = t.compat.find((l) => l.default && l.test?.test(i)) ?? t[H];
     if (r.tag !== o.tag) {
-      const l = e.tagString(r.tag), c = e.tagString(o.tag), p = `Value may be parsed as either ${l} or ${c}`;
-      a(n, "TAG_RESOLVE_FAILED", p, !0);
+      const l = e.tagString(r.tag), c = e.tagString(o.tag), u = `Value may be parsed as either ${l} or ${c}`;
+      a(n, "TAG_RESOLVE_FAILED", u, !0);
     }
   }
   return r;
 }
-function On(s, e, t) {
+function Tn(s, e, t) {
   if (e) {
     t ?? (t = e.length);
     for (let i = t - 1; i >= 0; --i) {
@@ -3577,25 +3577,25 @@ function On(s, e, t) {
   }
   return s;
 }
-const Tn = { composeNode: ti, composeEmptyNode: Ft };
-function ti(s, e, t, i) {
+const In = { composeNode: si, composeEmptyNode: Ft };
+function si(s, e, t, i) {
   const n = s.atKey, { spaceBefore: a, comment: r, anchor: o, tag: l } = t;
-  let c, p = !0;
+  let c, u = !0;
   switch (e.type) {
     case "alias":
-      c = In(s, e, i), (o || l) && i(e, "ALIAS_PROPS", "An alias node must not specify any properties");
+      c = Cn(s, e, i), (o || l) && i(e, "ALIAS_PROPS", "An alias node must not specify any properties");
       break;
     case "scalar":
     case "single-quoted-scalar":
     case "double-quoted-scalar":
     case "block-scalar":
-      c = ei(s, e, l, i), o && (c.anchor = o.source.substring(1));
+      c = ti(s, e, l, i), o && (c.anchor = o.source.substring(1));
       break;
     case "block-map":
     case "block-seq":
     case "flow-collection":
       try {
-        c = mn(Tn, s, e, t, i), o && (c.anchor = o.source.substring(1));
+        c = yn(In, s, e, t, i), o && (c.anchor = o.source.substring(1));
       } catch (h) {
         const d = h instanceof Error ? h.message : String(h);
         i(e, "RESOURCE_EXHAUSTION", d);
@@ -3603,34 +3603,34 @@ function ti(s, e, t, i) {
       break;
     default: {
       const h = e.type === "error" ? e.message : `Unsupported token (type: ${e.type})`;
-      i(e, "UNEXPECTED_TOKEN", h), p = !1;
+      i(e, "UNEXPECTED_TOKEN", h), u = !1;
     }
   }
-  return c ?? (c = Ft(s, e.offset, void 0, null, t, i)), o && c.anchor === "" && i(o, "BAD_ALIAS", "Anchor cannot be an empty string"), n && s.options.stringKeys && (!I(c) || typeof c.value != "string" || c.tag && c.tag !== "tag:yaml.org,2002:str") && i(l ?? e, "NON_STRING_KEY", "With stringKeys, all keys must be strings"), a && (c.spaceBefore = !0), r && (e.type === "scalar" && e.source === "" ? c.comment = r : c.commentBefore = r), s.options.keepSourceTokens && p && (c.srcToken = e), c;
+  return c ?? (c = Ft(s, e.offset, void 0, null, t, i)), o && c.anchor === "" && i(o, "BAD_ALIAS", "Anchor cannot be an empty string"), n && s.options.stringKeys && (!I(c) || typeof c.value != "string" || c.tag && c.tag !== "tag:yaml.org,2002:str") && i(l ?? e, "NON_STRING_KEY", "With stringKeys, all keys must be strings"), a && (c.spaceBefore = !0), r && (e.type === "scalar" && e.source === "" ? c.comment = r : c.commentBefore = r), s.options.keepSourceTokens && u && (c.srcToken = e), c;
 }
 function Ft(s, e, t, i, { spaceBefore: n, comment: a, anchor: r, tag: o, end: l }, c) {
-  const p = {
+  const u = {
     type: "scalar",
-    offset: On(e, t, i),
+    offset: Tn(e, t, i),
     indent: -1,
     source: ""
-  }, h = ei(s, p, o, c);
+  }, h = ti(s, u, o, c);
   return r && (h.anchor = r.source.substring(1), h.anchor === "" && c(r, "BAD_ALIAS", "Anchor cannot be an empty string")), n && (h.spaceBefore = !0), a && (h.comment = a, h.range[2] = l), h;
 }
-function In({ options: s }, { offset: e, source: t, end: i }, n) {
+function Cn({ options: s }, { offset: e, source: t, end: i }, n) {
   const a = new Lt(t.substring(1));
   a.source === "" && n(e, "BAD_ALIAS", "Alias cannot be an empty string"), a.source.endsWith(":") && n(e + t.length - 1, "BAD_ALIAS", "Alias ending in : is ambiguous", !0);
-  const r = e + t.length, o = je(i, r, s.strict, n);
+  const r = e + t.length, o = Be(i, r, s.strict, n);
   return a.range = [e, r, o.offset], o.comment && (a.comment = o.comment), a;
 }
-function Cn(s, e, { offset: t, start: i, value: n, end: a }, r) {
-  const o = Object.assign({ _directives: e }, s), l = new Ws(void 0, o), c = {
+function Ln(s, e, { offset: t, start: i, value: n, end: a }, r) {
+  const o = Object.assign({ _directives: e }, s), l = new Js(void 0, o), c = {
     atKey: !1,
     atRoot: !0,
     directives: l.directives,
     options: l.options,
     schema: l.schema
-  }, p = me(i, {
+  }, u = me(i, {
     indicator: "doc-start",
     next: n ?? a?.[0],
     offset: t,
@@ -3638,8 +3638,8 @@ function Cn(s, e, { offset: t, start: i, value: n, end: a }, r) {
     parentIndent: 0,
     startOnNewline: !0
   });
-  p.found && (l.directives.docStart = !0, n && (n.type === "block-map" || n.type === "block-seq") && !p.hasNewline && r(p.end, "MISSING_CHAR", "Block collection cannot start on same line with directives-end marker")), l.contents = n ? ti(c, n, p, r) : Ft(c, p.end, i, null, p, r);
-  const h = l.contents.range[2], d = je(a, h, !1, r);
+  u.found && (l.directives.docStart = !0, n && (n.type === "block-map" || n.type === "block-seq") && !u.hasNewline && r(u.end, "MISSING_CHAR", "Block collection cannot start on same line with directives-end marker")), l.contents = n ? si(c, n, u, r) : Ft(c, u.end, i, null, u, r);
+  const h = l.contents.range[2], d = Be(a, h, !1, r);
   return d.comment && (l.comment = d.comment), l.range = [t, h, d.offset], l;
 }
 function ke(s) {
@@ -3670,11 +3670,11 @@ function ds(s) {
   }
   return { comment: e, afterEmptyLine: i };
 }
-class Ln {
+class Pn {
   constructor(e = {}) {
     this.doc = null, this.atDirectives = !1, this.prelude = [], this.errors = [], this.warnings = [], this.onError = (t, i, n, a) => {
       const r = ke(t);
-      a ? this.warnings.push(new un(r, i, n)) : this.errors.push(new Ae(r, i, n));
+      a ? this.warnings.push(new un(r, i, n)) : this.errors.push(new _e(r, i, n));
     }, this.directives = new R({ version: e.version || "1.2" }), this.options = e;
   }
   decorate(e, t) {
@@ -3688,7 +3688,7 @@ ${i}` : i;
         e.commentBefore = i;
       else if (C(a) && !a.flow && a.items.length > 0) {
         let r = a.items[0];
-        D(r) && (r = r.key);
+        P(r) && (r = r.key);
         const o = r.commentBefore;
         r.commentBefore = o ? `${i}
 ${o}` : i;
@@ -3741,7 +3741,7 @@ ${r}` : i;
         }), this.prelude.push(e.source), this.atDirectives = !0;
         break;
       case "document": {
-        const t = Cn(this.options, this.directives, e, this.onError);
+        const t = Ln(this.options, this.directives, e, this.onError);
         this.atDirectives && !t.directives.docStart && this.onError(e, "MISSING_CHAR", "Missing directives-end/doc-start indicator line"), this.decorate(t, !1), this.doc && (yield this.doc), this.doc = t, this.atDirectives = !1;
         break;
       }
@@ -3753,18 +3753,18 @@ ${r}` : i;
         this.prelude.push(e.source);
         break;
       case "error": {
-        const t = e.source ? `${e.message}: ${JSON.stringify(e.source)}` : e.message, i = new Ae(ke(e), "UNEXPECTED_TOKEN", t);
+        const t = e.source ? `${e.message}: ${JSON.stringify(e.source)}` : e.message, i = new _e(ke(e), "UNEXPECTED_TOKEN", t);
         this.atDirectives || !this.doc ? this.errors.push(i) : this.doc.errors.push(i);
         break;
       }
       case "doc-end": {
         if (!this.doc) {
           const i = "Unexpected doc-end without preceding document";
-          this.errors.push(new Ae(ke(e), "UNEXPECTED_TOKEN", i));
+          this.errors.push(new _e(ke(e), "UNEXPECTED_TOKEN", i));
           break;
         }
         this.doc.directives.docEnd = !0;
-        const t = je(e.end, e.offset + e.source.length, this.doc.options.strict, this.onError);
+        const t = Be(e.end, e.offset + e.source.length, this.doc.options.strict, this.onError);
         if (this.decorate(this.doc, !0), t.comment) {
           const i = this.doc.comment;
           this.doc.comment = i ? `${i}
@@ -3774,7 +3774,7 @@ ${t.comment}` : t.comment;
         break;
       }
       default:
-        this.errors.push(new Ae(ke(e), "UNEXPECTED_TOKEN", `Unsupported token ${e.type}`));
+        this.errors.push(new _e(ke(e), "UNEXPECTED_TOKEN", `Unsupported token ${e.type}`));
     }
   }
   /**
@@ -3787,19 +3787,19 @@ ${t.comment}` : t.comment;
     if (this.doc)
       this.decorate(this.doc, !0), yield this.doc, this.doc = null;
     else if (e) {
-      const i = Object.assign({ _directives: this.directives }, this.options), n = new Ws(void 0, i);
+      const i = Object.assign({ _directives: this.directives }, this.options), n = new Js(void 0, i);
       this.atDirectives && this.onError(t, "MISSING_CHAR", "Missing directives-end indicator line"), n.range = [0, t, t], this.decorate(n, !1), yield n;
     }
   }
 }
-const si = "\uFEFF", ii = "", ni = "", kt = "";
+const ii = "\uFEFF", ni = "", ai = "", kt = "";
 function Dn(s) {
   switch (s) {
-    case si:
-      return "byte-order-mark";
     case ii:
-      return "doc-mode";
+      return "byte-order-mark";
     case ni:
+      return "doc-mode";
+    case ai:
       return "flow-error-end";
     case kt:
       return "scalar";
@@ -3867,9 +3867,9 @@ function q(s) {
       return !1;
   }
 }
-const us = new Set("0123456789ABCDEFabcdef"), Pn = new Set("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-#;/?:@&=+$_.!~*'()"), ze = new Set(",[]{}"), Mn = new Set(` ,[]{}
-\r	`), yt = (s) => !s || Mn.has(s);
-class Rn {
+const ps = new Set("0123456789ABCDEFabcdef"), Mn = new Set("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-#;/?:@&=+$_.!~*'()"), ze = new Set(",[]{}"), Rn = new Set(` ,[]{}
+\r	`), yt = (s) => !s || Rn.has(s);
+class jn {
   constructor() {
     this.atEnd = !1, this.blockScalarIndent = -1, this.blockScalarKeep = !1, this.buffer = "", this.flowKey = !1, this.flowLevel = 0, this.indentNext = 0, this.indentValue = 0, this.lineEndPos = null, this.next = null, this.pos = 0;
   }
@@ -3961,7 +3961,7 @@ class Rn {
     let e = this.getLine();
     if (e === null)
       return this.setNext("stream");
-    if (e[0] === si && (yield* this.pushCount(1), e = e.substring(1)), e[0] === "%") {
+    if (e[0] === ii && (yield* this.pushCount(1), e = e.substring(1)), e[0] === "%") {
       let t = e.length, i = e.indexOf("#");
       for (; i !== -1; ) {
         const a = e[i - 1];
@@ -3985,7 +3985,7 @@ class Rn {
       const t = yield* this.pushSpaces(!0);
       return yield* this.pushCount(e.length - t), yield* this.pushNewline(), "stream";
     }
-    return yield ii, yield* this.parseLineStart();
+    return yield ni, yield* this.parseLineStart();
   }
   *parseLineStart() {
     const e = this.charAt(0);
@@ -4049,7 +4049,7 @@ class Rn {
     if (n === null)
       return this.setNext("flow");
     if ((i !== -1 && i < this.indentNext && n[0] !== "#" || i === 0 && (n.startsWith("---") || n.startsWith("...")) && q(n[3])) && !(i === this.indentNext - 1 && this.flowLevel === 1 && (n[0] === "]" || n[0] === "}")))
-      return this.flowLevel = 0, yield ni, yield* this.parseLineStart();
+      return this.flowLevel = 0, yield ai, yield* this.parseLineStart();
     let a = 0;
     for (; n[a] === ","; )
       a += yield* this.pushCount(1), a += yield* this.pushSpaces(!0), this.flowKey = !1;
@@ -4262,9 +4262,9 @@ class Rn {
     } else {
       let e = this.pos + 1, t = this.buffer[e];
       for (; t; )
-        if (Pn.has(t))
+        if (Mn.has(t))
           t = this.buffer[++e];
-        else if (t === "%" && us.has(this.buffer[e + 1]) && us.has(this.buffer[e + 2]))
+        else if (t === "%" && ps.has(this.buffer[e + 1]) && ps.has(this.buffer[e + 2]))
           t = this.buffer[e += 3];
         else
           break;
@@ -4309,13 +4309,13 @@ class Bn {
     };
   }
 }
-function G(s, e) {
+function W(s, e) {
   for (let t = 0; t < s.length; ++t)
     if (s[t].type === e)
       return !0;
   return !1;
 }
-function ps(s) {
+function us(s) {
   for (let e = 0; e < s.length; ++e)
     switch (s[e].type) {
       case "space":
@@ -4327,7 +4327,7 @@ function ps(s) {
     }
   return -1;
 }
-function ai(s) {
+function ri(s) {
   switch (s?.type) {
     case "alias":
     case "scalar":
@@ -4381,15 +4381,15 @@ function Ze(s, e) {
 function fs(s) {
   if (s.start.type === "flow-seq-start")
     for (const e of s.items)
-      e.sep && !e.value && !G(e.start, "explicit-key-ind") && !G(e.sep, "map-value-ind") && (e.key && (e.value = e.key), delete e.key, ai(e.value) ? e.value.end ? Ze(e.value.end, e.sep) : e.value.end = e.sep : Ze(e.start, e.sep), delete e.sep);
+      e.sep && !e.value && !W(e.start, "explicit-key-ind") && !W(e.sep, "map-value-ind") && (e.key && (e.value = e.key), delete e.key, ri(e.value) ? e.value.end ? Ze(e.value.end, e.sep) : e.value.end = e.sep : Ze(e.start, e.sep), delete e.sep);
 }
-class jn {
+class Un {
   /**
    * @param onNewLine - If defined, called separately with the start position of
    *   each new line (in `parse()`, including the start of input).
    */
   constructor(e) {
-    this.atNewLine = !0, this.atScalar = !1, this.indent = 0, this.offset = 0, this.onKeyLine = !1, this.stack = [], this.source = "", this.type = "", this.lexer = new Rn(), this.onNewLine = e;
+    this.atNewLine = !0, this.atScalar = !1, this.indent = 0, this.offset = 0, this.onKeyLine = !1, this.stack = [], this.source = "", this.type = "", this.lexer = new jn(), this.onNewLine = e;
   }
   /**
    * Parse `source` as a YAML stream.
@@ -4538,7 +4538,7 @@ class jn {
       }
       if ((i.type === "document" || i.type === "block-map" || i.type === "block-seq") && (t.type === "block-map" || t.type === "block-seq")) {
         const n = t.items[t.items.length - 1];
-        n && !n.sep && !n.value && n.start.length > 0 && ps(n.start) === -1 && (t.indent === 0 || n.start.every((a) => a.type !== "comment" || a.indent < t.indent)) && (i.type === "document" ? i.end = n.start : i.items.push({ start: n.start }), t.items.splice(-1, 1));
+        n && !n.sep && !n.value && n.start.length > 0 && us(n.start) === -1 && (t.indent === 0 || n.start.every((a) => a.type !== "comment" || a.indent < t.indent)) && (i.type === "document" ? i.end = n.start : i.items.push({ start: n.start }), t.items.splice(-1, 1));
       }
     }
   }
@@ -4576,7 +4576,7 @@ class jn {
       return yield* this.lineEnd(e);
     switch (this.type) {
       case "doc-start": {
-        ps(e.start) !== -1 ? (yield* this.pop(), yield* this.step()) : e.start.push(this.sourceToken);
+        us(e.start) !== -1 ? (yield* this.pop(), yield* this.step()) : e.start.push(this.sourceToken);
         return;
       }
       case "anchor":
@@ -4699,14 +4699,14 @@ class jn {
             if (t.sep)
               if (t.value)
                 e.items.push({ start: [], key: null, sep: [this.sourceToken] });
-              else if (G(t.sep, "map-value-ind"))
+              else if (W(t.sep, "map-value-ind"))
                 this.stack.push({
                   type: "block-map",
                   offset: this.offset,
                   indent: this.indent,
                   items: [{ start: a, key: null, sep: [this.sourceToken] }]
                 });
-              else if (ai(t.key) && !G(t.sep, "newline")) {
+              else if (ri(t.key) && !W(t.sep, "newline")) {
                 const r = re(t.start), o = t.key, l = t.sep;
                 l.push(this.sourceToken), delete t.key, delete t.sep, this.stack.push({
                   type: "block-map",
@@ -4715,7 +4715,7 @@ class jn {
                   items: [{ start: r, key: o, sep: l }]
                 });
               } else a.length > 0 ? t.sep = t.sep.concat(a, this.sourceToken) : t.sep.push(this.sourceToken);
-            else if (G(t.start, "newline"))
+            else if (W(t.start, "newline"))
               Object.assign(t, { key: null, sep: [this.sourceToken] });
             else {
               const r = re(t.start);
@@ -4727,7 +4727,7 @@ class jn {
               });
             }
           else
-            t.sep ? t.value || n ? e.items.push({ start: a, key: null, sep: [this.sourceToken] }) : G(t.sep, "map-value-ind") ? this.stack.push({
+            t.sep ? t.value || n ? e.items.push({ start: a, key: null, sep: [this.sourceToken] }) : W(t.sep, "map-value-ind") ? this.stack.push({
               type: "block-map",
               offset: this.offset,
               indent: this.indent,
@@ -4747,7 +4747,7 @@ class jn {
           const r = this.startBlockValue(e);
           if (r) {
             if (r.type === "block-seq") {
-              if (!t.explicitKey && t.sep && !G(t.sep, "newline")) {
+              if (!t.explicitKey && t.sep && !W(t.sep, "newline")) {
                 yield* this.pop({
                   type: "error",
                   offset: this.offset,
@@ -4799,7 +4799,7 @@ class jn {
       case "seq-item-ind":
         if (this.indent !== e.indent)
           break;
-        t.value || G(t.start, "seq-item-ind") ? e.items.push({ start: [this.sourceToken] }) : t.start.push(this.sourceToken);
+        t.value || W(t.start, "seq-item-ind") ? e.items.push({ start: [this.sourceToken] }) : t.start.push(this.sourceToken);
         return;
     }
     if (this.indent > e.indent) {
@@ -4962,28 +4962,28 @@ class jn {
     }
   }
 }
-function Un(s) {
+function Kn(s) {
   const e = s.prettyErrors !== !1;
   return { lineCounter: s.lineCounter || e && new Bn() || null, prettyErrors: e };
 }
-function Kn(s, e = {}) {
-  const { lineCounter: t, prettyErrors: i } = Un(e), n = new jn(t?.addNewLine), a = new Ln(e);
+function qn(s, e = {}) {
+  const { lineCounter: t, prettyErrors: i } = Kn(e), n = new Un(t?.addNewLine), a = new Pn(e);
   let r = null;
   for (const o of a.compose(n.parse(s), !0, s.length))
     if (!r)
       r = o;
     else if (r.options.logLevel !== "silent") {
-      r.errors.push(new Ae(o.range.slice(0, 2), "MULTIPLE_DOCS", "Source contains multiple documents; please use YAML.parseAllDocuments()"));
+      r.errors.push(new _e(o.range.slice(0, 2), "MULTIPLE_DOCS", "Source contains multiple documents; please use YAML.parseAllDocuments()"));
       break;
     }
   return i && t && (r.errors.forEach(cs(s, t)), r.warnings.forEach(cs(s, t))), r;
 }
-function qn(s, e, t) {
+function gs(s, e, t) {
   let i;
-  const n = Kn(s, t);
+  const n = qn(s, t);
   if (!n)
     return null;
-  if (n.warnings.forEach((a) => Os(n.options.logLevel, a)), n.errors.length > 0) {
+  if (n.warnings.forEach((a) => Ts(n.options.logLevel, a)), n.errors.length > 0) {
     if (n.options.logLevel !== "silent")
       throw n.errors[0];
     n.errors = [];
@@ -5012,7 +5012,12 @@ const Fn = [
 ];
 let $ = class extends Ee {
   constructor() {
-    super(...arguments), this.tab = "inbox", this.filter = "new", this.loading = !0, this.busy = !1, this.error = "", this.chat = [], this.chatText = "", this.threadId = "main", this.threads = [], this.selectedGoals = [], this.ignoredEntities = [], this.ignoredEntityQuery = "", this.ignoredEntityError = "", this.advisorMode = "balanced", this.scanDepth = "standard", this.automationComplexity = "normal", this.fixExistingFirst = !0, this.avoidNewHardware = !0, this.quietStart = "22:00", this.quietEnd = "07:00", this.providerDraft = "", this.modelDraft = "", this.baseUrlDraft = "", this.apiKeyDraft = "", this.showConnectionAdvanced = !1, this.historyDays = 30, this.includeExactLocation = !1, this.schedule = "manual", this.scheduleTime = "03:00", this.scheduleWeekday = 0, this.notifyNewSuggestions = !0, this.settingsNotice = "", this.copied = !1, this.draftYaml = "", this.draftError = "", this.dialog = null, this.feedbackReason = "", this.feedbackNote = "", this.renameText = "", this.started = !1;
+    super(...arguments), this.tab = "inbox", this.filter = "new", this.loading = !0, this.busy = !1, this.error = "", this.chat = [], this.chatText = "", this.threadId = "main", this.threads = [], this.selectedGoals = [], this.ignoredEntities = [], this.ignoredEntityQuery = "", this.ignoredEntityError = "", this.advisorMode = "balanced", this.scanDepth = "standard", this.automationComplexity = "normal", this.fixExistingFirst = !0, this.avoidNewHardware = !0, this.changePermissions = {
+      create_automations: !1,
+      update_automations: !1,
+      remove_entities: !1,
+      remove_devices: !1
+    }, this.quietStart = "22:00", this.quietEnd = "07:00", this.providerDraft = "", this.modelDraft = "", this.baseUrlDraft = "", this.apiKeyDraft = "", this.showConnectionAdvanced = !1, this.historyDays = 30, this.includeExactLocation = !1, this.schedule = "manual", this.scheduleTime = "03:00", this.scheduleWeekday = 0, this.notifyNewSuggestions = !0, this.settingsNotice = "", this.copied = !1, this.draftYaml = "", this.draftError = "", this.dialog = null, this.feedbackReason = "", this.feedbackNote = "", this.renameText = "", this.started = !1;
   }
   connectedCallback() {
     super.connectedCallback(), this.start();
@@ -5060,10 +5065,21 @@ let $ = class extends Ee {
   }
   hydrateSettings(s) {
     const e = s.preferences;
-    this.selectedGoals = [...e.goals ?? []], this.ignoredEntities = [...e.ignored_entities ?? []], this.advisorMode = e.advisor_mode ?? "balanced", this.scanDepth = e.scan_depth ?? "standard", this.automationComplexity = e.automation_complexity ?? "normal", this.fixExistingFirst = e.fix_existing_first !== !1, this.avoidNewHardware = e.avoid_new_hardware !== !1, this.quietStart = e.quiet_hours?.start ?? "22:00", this.quietEnd = e.quiet_hours?.end ?? "07:00", this.providerDraft = s.provider, this.modelDraft = s.model, this.baseUrlDraft = s.base_url, this.apiKeyDraft = "", this.historyDays = s.options.history_days ?? 30, this.includeExactLocation = s.options.include_exact_location === !0, this.schedule = s.options.schedule ?? "manual", this.scheduleTime = (s.options.schedule_time ?? "03:00:00").slice(
+    this.selectedGoals = [...e.goals ?? []], this.ignoredEntities = [...e.ignored_entities ?? []], this.advisorMode = e.advisor_mode ?? "balanced", this.scanDepth = e.scan_depth ?? "standard", this.automationComplexity = e.automation_complexity ?? "normal", this.fixExistingFirst = e.fix_existing_first !== !1, this.avoidNewHardware = e.avoid_new_hardware !== !1, this.changePermissions = {
+      create_automations: e.change_permissions?.create_automations === !0,
+      update_automations: e.change_permissions?.update_automations === !0,
+      remove_entities: e.change_permissions?.remove_entities === !0,
+      remove_devices: e.change_permissions?.remove_devices === !0
+    }, this.quietStart = e.quiet_hours?.start ?? "22:00", this.quietEnd = e.quiet_hours?.end ?? "07:00", this.providerDraft = this.resolveProvider(s), this.modelDraft = s.model, this.baseUrlDraft = s.base_url, this.apiKeyDraft = "", this.historyDays = s.options.history_days ?? 30, this.includeExactLocation = s.options.include_exact_location === !0, this.schedule = s.options.schedule ?? "manual", this.scheduleTime = (s.options.schedule_time ?? "03:00:00").slice(
       0,
       5
     ), this.scheduleWeekday = s.options.schedule_weekday ?? 0, this.notifyNewSuggestions = s.options.notify_new_suggestions !== !1;
+  }
+  resolveProvider(s) {
+    const e = s.base_url.toLocaleLowerCase(), t = s.model.toLocaleLowerCase(), i = s.provider_options.find((a) => a.id !== "openai_compatible" && a.default_base_url && e.startsWith(a.default_base_url.toLocaleLowerCase()) ? !0 : a.id === "deepseek" && t.startsWith("deepseek"));
+    return i ? i.id : s.provider_options.find(
+      (a) => a.id === s.provider
+    )?.id ?? s.provider_options[0]?.id ?? "openai";
   }
   get filteredSuggestions() {
     const s = this.overview?.suggestions ?? [];
@@ -5225,6 +5241,7 @@ let $ = class extends Ee {
             automation_complexity: this.automationComplexity,
             fix_existing_first: this.fixExistingFirst,
             avoid_new_hardware: this.avoidNewHardware,
+            change_permissions: this.changePermissions,
             quiet_hours: { start: this.quietStart, end: this.quietEnd }
           }
         }), await this.loadOverview(), this.settingsNotice = "Advisor preferences saved.";
@@ -5292,6 +5309,94 @@ let $ = class extends Ee {
     ), i = !this.modelDraft || this.modelDraft === e?.default_model, n = !this.baseUrlDraft || this.baseUrlDraft === e?.default_base_url;
     this.providerDraft = s, t && i && (this.modelDraft = t.default_model), t && n && (this.baseUrlDraft = t.default_base_url), this.apiKeyDraft = "", this.settingsNotice = "";
   }
+  openClearInbox() {
+    this.filteredSuggestions.length !== 0 && (this.dialog = "clear-inbox");
+  }
+  async clearInbox() {
+    const s = this.filter === "all" ? void 0 : this.filter;
+    this.dialog = null, this.busy = !0;
+    try {
+      await this.call("haos_ai/suggestions/clear", {
+        ...s ? { status: s } : {}
+      }), this.selectedId = void 0, await this.loadOverview();
+    } catch (e) {
+      this.error = this.describeError(e);
+    } finally {
+      this.busy = !1;
+    }
+  }
+  changeFor(s) {
+    if (s.automation)
+      return {
+        kind: s.automation.target_id ? "update_automation" : "create_automation",
+        suggestionId: s.id,
+        targetId: s.automation.target_id ?? "new automation",
+        label: s.title
+      };
+    if (s.operation)
+      return {
+        kind: s.operation.type,
+        suggestionId: s.id,
+        targetId: s.operation.target_id,
+        label: s.operation.label,
+        configEntryId: s.operation.config_entry_id ?? void 0
+      };
+  }
+  canApply(s) {
+    return {
+      create_automation: this.changePermissions.create_automations,
+      update_automation: this.changePermissions.update_automations,
+      remove_entity: this.changePermissions.remove_entities,
+      remove_device: this.changePermissions.remove_devices
+    }[s.kind];
+  }
+  openChangeApproval(s) {
+    const e = this.changeFor(s);
+    !e || !this.canApply(e) || (this.pendingChange = e, this.dialog = "approve-change");
+  }
+  async approveChange() {
+    const s = this.pendingChange;
+    if (!(!s || !this.canApply(s) || !this.hass)) {
+      this.dialog = null, this.busy = !0, this.error = "";
+      try {
+        if (s.kind === "create_automation" || s.kind === "update_automation") {
+          if (!this.draftValidation?.valid)
+            throw new Error("Validate the current automation draft before approval.");
+          if (!this.hass.callApi)
+            throw new Error("Home Assistant's automation config API is unavailable.");
+          const e = gs(this.draftYaml);
+          if (!e || typeof e != "object" || Array.isArray(e))
+            throw new Error("Automation YAML must contain one object.");
+          const t = s.kind === "update_automation" ? s.targetId : crypto.randomUUID().replaceAll("-", "");
+          await this.hass.callApi(
+            "POST",
+            `config/automation/config/${t}`,
+            e
+          );
+        } else if (s.kind === "remove_entity")
+          await this.call("haos_ai/change/apply", {
+            suggestion_id: s.suggestionId,
+            confirm: !0
+          });
+        else {
+          if (!s.configEntryId)
+            throw new Error("The device's integration reference is missing.");
+          await this.call("haos_ai/change/apply", {
+            suggestion_id: s.suggestionId,
+            confirm: !0
+          });
+        }
+        (s.kind === "create_automation" || s.kind === "update_automation") && await this.call("haos_ai/suggestion/update", {
+          suggestion_id: s.suggestionId,
+          status: "saved"
+        }), this.pendingChange = void 0, this.settingsNotice = "Approved change applied by Home Assistant.", await this.loadOverview();
+      } catch (e) {
+        this.error = this.describeError(e);
+      } finally {
+        this.busy = !1;
+      }
+    }
+  }
   get matchingEntities() {
     const s = this.ignoredEntityQuery.trim().toLocaleLowerCase();
     return s ? Object.values(this.hass?.states ?? {}).filter((e) => !this.ignoredEntities.includes(e.entity_id)).filter((e) => {
@@ -5326,7 +5431,7 @@ let $ = class extends Ee {
     this.draftError = "";
     let s;
     try {
-      s = qn(this.draftYaml);
+      s = gs(this.draftYaml);
     } catch (e) {
       this.draftError = `YAML syntax: ${this.describeError(e)}`;
       return;
@@ -5521,7 +5626,15 @@ ${this.draftYaml}
               <h2>Suggestions</h2>
               <p>Nothing is applied automatically.</p>
             </div>
-            <span class="total">${s.length}</span>
+            <div class="inbox-heading-actions">
+              <span class="total">${s.length}</span>
+              <ha-icon-button
+                label=${this.filter === "all" ? "Clear entire inbox" : `Clear ${this.filter} suggestions`}
+                icon="mdi:inbox-remove-outline"
+                ?disabled=${this.busy || s.length === 0}
+                @click=${this.openClearInbox}
+              ></ha-icon-button>
+            </div>
           </div>
           <div class="filters" aria-label="Suggestion filters">
             ${["new", "saved", "dismissed", "all"].map(
@@ -5593,7 +5706,7 @@ ${this.draftYaml}
     `;
   }
   renderSuggestionDetail(s) {
-    const e = this.draftValidation ?? s.automation?.validation, t = s.automation?.explanation ?? s.automation?.config?.description ?? s.summary;
+    const e = this.draftValidation ?? s.automation?.validation, t = this.changeFor(s), i = t ? this.canApply(t) : !1, n = s.automation?.explanation ?? s.automation?.config?.description ?? s.summary;
     return y`
       <div class="detail-content">
         <ha-button
@@ -5624,14 +5737,14 @@ ${this.draftYaml}
           <h3>Why this surfaced</h3>
           <p>${s.rationale}</p>
           <div class="evidence-list">
-            ${s.evidence.map((i) => this.renderEvidence(i))}
+            ${s.evidence.map((a) => this.renderEvidence(a))}
           </div>
         </section>
 
         ${s.automation ? y`
               <section class="detail-section">
                 <h3>What the automation does</h3>
-                <p>${t}</p>
+                <p>${n}</p>
               </section>
               <section class="detail-section yaml-section">
                 <div class="section-heading">
@@ -5649,7 +5762,7 @@ ${this.draftYaml}
                 ${e && !e.valid ? y`
                       <div class="validation-errors">
                         ${Object.entries(e.errors).map(
-      ([i, n]) => y`<p><strong>${i}:</strong> ${n}</p>`
+      ([a, r]) => y`<p><strong>${a}:</strong> ${r}</p>`
     )}
                       </div>
                     ` : O}
@@ -5658,8 +5771,8 @@ ${this.draftYaml}
                   aria-label="Automation YAML"
                   spellcheck="false"
                   .value=${this.draftYaml}
-                  @input=${(i) => {
-      this.draftYaml = i.target.value, this.draftValidation = void 0;
+                  @input=${(a) => {
+      this.draftYaml = a.target.value, this.draftValidation = void 0;
     }}
                 ></textarea>
                 <div class="yaml-actions">
@@ -5690,7 +5803,7 @@ ${this.draftYaml}
         <footer class="decision-bar">
           <span>
             <ha-icon icon="mdi:shield-lock-outline"></ha-icon>
-            HAOS AI never writes or enables automations.
+            ${t && i ? "No automatic writes. Every change requires your approval." : "HAOS AI is read-only unless you enable an approval capability."}
           </span>
           <div class="decision-actions">
             ${s.status !== "dismissed" ? y`
@@ -5705,6 +5818,16 @@ ${this.draftYaml}
                     Restore
                   </ha-button>
                 `}
+            ${t && i && s.status !== "dismissed" ? y`
+                  <ha-button
+                    appearance="accent"
+                    ?disabled=${this.busy || (t.kind === "create_automation" || t.kind === "update_automation") && !e?.valid}
+                    @click=${() => this.openChangeApproval(s)}
+                  >
+                    <ha-icon icon="mdi:shield-check-outline" slot="start"></ha-icon>
+                    ${t.kind === "create_automation" ? "Review & create" : t.kind === "update_automation" ? "Review & update" : "Review removal"}
+                  </ha-button>
+                ` : O}
             ${s.status !== "saved" ? y`
                   <ha-button
                     appearance="accent"
@@ -6046,7 +6169,10 @@ ${this.draftYaml}
               >
                 ${this.overview.provider_options.map(
       (i) => y`
-                    <option value=${i.id}>${i.label}</option>
+                    <option
+                      value=${i.id}
+                      ?selected=${i.id === this.providerDraft}
+                    >${i.label}</option>
                   `
     )}
               </select>
@@ -6156,6 +6282,7 @@ ${this.draftYaml}
                   <option value="conservative">Conservative</option>
                   <option value="balanced">Balanced</option>
                   <option value="ambitious">Ambitious</option>
+                  <option value="automation_hell">I WANT AUTOMATION HELL</option>
                 </select>
               </label>
               <label>
@@ -6259,6 +6386,48 @@ ${this.draftYaml}
             <ha-button appearance="accent" ?disabled=${this.busy} @click=${this.savePreferences}>
               <ha-icon icon="mdi:content-save-outline" slot="start"></ha-icon>
               Save advisor preferences
+            </ha-button>
+          </div>
+        </ha-card>
+
+        <ha-card class="settings-section approval-settings">
+          <div class="settings-section-title">
+            <ha-icon icon="mdi:shield-key-outline"></ha-icon>
+            <div>
+              <h3>Approval-only changes</h3>
+              <p>Let HAOS AI prepare changes, then review every one before Home Assistant applies it.</p>
+            </div>
+          </div>
+          <div class="approval-banner">
+            <ha-icon icon="mdi:account-check-outline"></ha-icon>
+            <span>
+              <strong>Approval is always required.</strong>
+              Scheduled scans and chat can only prepare requests. They can never approve them.
+            </span>
+          </div>
+          <div class="toggle-list divided-toggles capability-list">
+            <label>
+              <input type="checkbox" .checked=${this.changePermissions.create_automations} @change=${(i) => this.changePermissions = { ...this.changePermissions, create_automations: i.target.checked }} />
+              <span><strong>Create validated automations</strong><small>Shows an approval button only after the current YAML passes Home Assistant validation.</small></span>
+            </label>
+            <label>
+              <input type="checkbox" .checked=${this.changePermissions.update_automations} @change=${(i) => this.changePermissions = { ...this.changePermissions, update_automations: i.target.checked }} />
+              <span><strong>Update existing automations</strong><small>Only exact, existing automation config IDs can be proposed and replaced after review.</small></span>
+            </label>
+            <label>
+              <input type="checkbox" .checked=${this.changePermissions.remove_entities} @change=${(i) => this.changePermissions = { ...this.changePermissions, remove_entities: i.target.checked }} />
+              <span><strong>Remove orphaned entities</strong><small>Only exact registry entries missing from the current state machine can be proposed.</small></span>
+            </label>
+            <label>
+              <input type="checkbox" .checked=${this.changePermissions.remove_devices} @change=${(i) => this.changePermissions = { ...this.changePermissions, remove_devices: i.target.checked }} />
+              <span><strong>Remove stale devices</strong><small>Only when the owning integration supports removal and all registered entities are orphaned.</small></span>
+            </label>
+          </div>
+          <div class="settings-action">
+            <span>These permissions expose approval actions; they do not enable autonomy.</span>
+            <ha-button appearance="accent" ?disabled=${this.busy} @click=${this.savePreferences}>
+              <ha-icon icon="mdi:content-save-outline" slot="start"></ha-icon>
+              Save approval permissions
             </ha-button>
           </div>
         </ha-card>
@@ -6384,7 +6553,8 @@ ${this.draftYaml}
     `;
   }
   renderActionDialog() {
-    return this.dialog === "feedback" ? y`
+    if (this.dialog === "feedback")
+      return y`
         <ha-adaptive-dialog
           open
           allow-mode-change
@@ -6394,7 +6564,7 @@ ${this.draftYaml}
         >
           <div class="dialog-content feedback-options">
             ${Fn.map(
-      (s) => y`
+        (s) => y`
                 <button
                   class=${this.feedbackReason === s ? "selected" : ""}
                   @click=${() => this.feedbackReason = s}
@@ -6405,7 +6575,7 @@ ${this.draftYaml}
                   ${s}
                 </button>
               `
-    )}
+      )}
             <label>
               Optional note
               <textarea
@@ -6424,7 +6594,9 @@ ${this.draftYaml}
             >Dismiss suggestion</ha-button>
           </div>
         </ha-adaptive-dialog>
-      ` : this.dialog === "rename" ? y`
+      `;
+    if (this.dialog === "rename")
+      return y`
         <ha-adaptive-dialog
           open
           allow-mode-change
@@ -6448,7 +6620,81 @@ ${this.draftYaml}
             </ha-button>
           </div>
         </ha-adaptive-dialog>
-      ` : y`
+      `;
+    if (this.dialog === "clear-inbox") {
+      const s = this.filteredSuggestions.length;
+      return y`
+        <ha-adaptive-dialog
+          open
+          type="alert"
+          header-title=${this.filter === "all" ? "Clear the entire inbox?" : `Clear ${this.filter} suggestions?`}
+          header-subtitle="Local suggestions only"
+          @closed=${() => this.dialog = null}
+        >
+          <div class="dialog-content">
+            <p>
+              This permanently removes ${s} ${s === 1 ? "suggestion" : "suggestions"}
+              from Home Assistant. It does not change devices or automations.
+            </p>
+          </div>
+          <div slot="footer">
+            <ha-button appearance="plain" @click=${() => this.dialog = null}>Cancel</ha-button>
+            <ha-button variant="danger" appearance="filled" @click=${this.clearInbox}>
+              Clear ${s}
+            </ha-button>
+          </div>
+        </ha-adaptive-dialog>
+      `;
+    }
+    if (this.dialog === "approve-change" && this.pendingChange) {
+      const s = this.pendingChange, e = !["create_automation", "update_automation"].includes(
+        s.kind
+      );
+      return y`
+        <ha-adaptive-dialog
+          open
+          type=${e ? "alert" : O}
+          header-title=${e ? "Approve removal?" : s.kind === "update_automation" ? "Approve automation update?" : "Approve automation creation?"}
+          header-subtitle="Manual approval · one change"
+          @closed=${() => {
+        this.dialog = null, this.pendingChange = void 0;
+      }}
+        >
+          <div class="dialog-content approval-review">
+            <div class="approval-banner">
+              <ha-icon icon="mdi:shield-check-outline"></ha-icon>
+              <span>
+                <strong>HAOS AI cannot approve this.</strong>
+                Home Assistant applies it only after you press the button below.
+              </span>
+            </div>
+            <dl>
+              <div><dt>Action</dt><dd>${s.kind.replaceAll("_", " ")}</dd></div>
+              <div><dt>Target</dt><dd>${s.label}</dd></div>
+              <div><dt>Identifier</dt><dd><code>${s.targetId}</code></dd></div>
+            </dl>
+            ${s.kind === "create_automation" || s.kind === "update_automation" ? y`
+                  <details>
+                    <summary>Inspect validated YAML</summary>
+                    <pre><code>${this.draftYaml}</code></pre>
+                  </details>
+                ` : y`<p class="danger-copy">Removal may be irreversible. A future scan cannot restore registry data.</p>`}
+          </div>
+          <div slot="footer">
+            <ha-button appearance="plain" @click=${() => {
+        this.dialog = null, this.pendingChange = void 0;
+      }}>Cancel</ha-button>
+            <ha-button
+              variant=${e ? "danger" : O}
+              appearance=${e ? "filled" : "accent"}
+              ?disabled=${this.busy}
+              @click=${this.approveChange}
+            >${e ? "Approve & remove" : s.kind === "update_automation" ? "Approve & update" : "Approve & create"}</ha-button>
+          </div>
+        </ha-adaptive-dialog>
+      `;
+    }
+    return y`
       <ha-adaptive-dialog
         open
         type="alert"
@@ -6479,7 +6725,7 @@ ${this.draftYaml}
     return i ? `${i.toLocaleString()} tokens` : "Usage unavailable";
   }
 };
-$.styles = oi`
+$.styles = li`
     /* Hallmark · genre: native-admin · macrostructure: Workbench split view
      * tone: utilitarian · design authority: Home Assistant 2026.7
      * logo: code-native house + advisor spark · enrichment: none
@@ -6867,6 +7113,12 @@ $.styles = oi`
     .total {
       color: var(--haos-muted);
       font-variant-numeric: tabular-nums;
+    }
+
+    .inbox-heading-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--ha-space-1, 4px);
     }
 
     .filters {
@@ -7556,6 +7808,38 @@ $.styles = oi`
       font-size: var(--ha-font-size-s, 13px);
     }
 
+    .approval-banner {
+      padding: var(--ha-space-3, 12px);
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: start;
+      gap: var(--ha-space-3, 12px);
+      border: 1px solid color-mix(in srgb, var(--haos-primary) 30%, var(--haos-divider));
+      border-radius: var(--ha-border-radius-lg, 10px);
+      color: var(--haos-text);
+      background: var(--haos-selected);
+      line-height: var(--ha-line-height-normal, 1.5);
+      font-size: var(--ha-font-size-s, 13px);
+    }
+
+    .approval-settings > .approval-banner {
+      margin: var(--ha-space-5, 20px);
+    }
+
+    .approval-banner > ha-icon {
+      color: var(--haos-primary);
+    }
+
+    .approval-banner span {
+      display: grid;
+      gap: 2px;
+    }
+
+    .capability-list {
+      margin-top: 0;
+      border-top: 0;
+    }
+
     .settings-fields,
     .goal-grid,
     .settings-subsection,
@@ -7930,6 +8214,38 @@ $.styles = oi`
       line-height: var(--ha-line-height-normal, 1.55);
     }
 
+    .approval-review {
+      display: grid;
+      gap: var(--ha-space-4, 16px);
+    }
+
+    .approval-review dl {
+      margin: 0;
+      border-top: 1px solid var(--haos-divider);
+    }
+
+    .approval-review dl > div {
+      padding: var(--ha-space-3, 12px) 0;
+      display: grid;
+      grid-template-columns: minmax(100px, 0.35fr) minmax(0, 1fr);
+      gap: var(--ha-space-3, 12px);
+      border-bottom: 1px solid var(--haos-divider);
+    }
+
+    .approval-review dt {
+      color: var(--haos-muted);
+    }
+
+    .approval-review dd {
+      min-width: 0;
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .danger-copy {
+      color: var(--haos-error) !important;
+    }
+
     .category-list {
       margin-top: var(--ha-space-4, 16px);
       display: grid;
@@ -8273,148 +8589,154 @@ x([
   Tt({ attribute: !1 })
 ], $.prototype, "panel", 2);
 x([
-  S()
+  k()
 ], $.prototype, "overview", 2);
 x([
-  S()
+  k()
 ], $.prototype, "tab", 2);
 x([
-  S()
+  k()
 ], $.prototype, "filter", 2);
 x([
-  S()
+  k()
 ], $.prototype, "selectedId", 2);
 x([
-  S()
+  k()
 ], $.prototype, "loading", 2);
 x([
-  S()
+  k()
 ], $.prototype, "busy", 2);
 x([
-  S()
+  k()
 ], $.prototype, "error", 2);
 x([
-  S()
+  k()
 ], $.prototype, "preview", 2);
 x([
-  S()
+  k()
 ], $.prototype, "progress", 2);
 x([
-  S()
+  k()
 ], $.prototype, "chat", 2);
 x([
-  S()
+  k()
 ], $.prototype, "chatText", 2);
 x([
-  S()
+  k()
 ], $.prototype, "threadId", 2);
 x([
-  S()
+  k()
 ], $.prototype, "threads", 2);
 x([
-  S()
+  k()
 ], $.prototype, "activity", 2);
 x([
-  S()
+  k()
 ], $.prototype, "receipt", 2);
 x([
-  S()
+  k()
 ], $.prototype, "selectedReceiptId", 2);
 x([
-  S()
+  k()
 ], $.prototype, "selectedGoals", 2);
 x([
-  S()
+  k()
 ], $.prototype, "ignoredEntities", 2);
 x([
-  S()
+  k()
 ], $.prototype, "ignoredEntityQuery", 2);
 x([
-  S()
+  k()
 ], $.prototype, "ignoredEntityError", 2);
 x([
-  S()
+  k()
 ], $.prototype, "advisorMode", 2);
 x([
-  S()
+  k()
 ], $.prototype, "scanDepth", 2);
 x([
-  S()
+  k()
 ], $.prototype, "automationComplexity", 2);
 x([
-  S()
+  k()
 ], $.prototype, "fixExistingFirst", 2);
 x([
-  S()
+  k()
 ], $.prototype, "avoidNewHardware", 2);
 x([
-  S()
+  k()
+], $.prototype, "changePermissions", 2);
+x([
+  k()
 ], $.prototype, "quietStart", 2);
 x([
-  S()
+  k()
 ], $.prototype, "quietEnd", 2);
 x([
-  S()
+  k()
 ], $.prototype, "providerDraft", 2);
 x([
-  S()
+  k()
 ], $.prototype, "modelDraft", 2);
 x([
-  S()
+  k()
 ], $.prototype, "baseUrlDraft", 2);
 x([
-  S()
+  k()
 ], $.prototype, "apiKeyDraft", 2);
 x([
-  S()
+  k()
 ], $.prototype, "showConnectionAdvanced", 2);
 x([
-  S()
+  k()
 ], $.prototype, "historyDays", 2);
 x([
-  S()
+  k()
 ], $.prototype, "includeExactLocation", 2);
 x([
-  S()
+  k()
 ], $.prototype, "schedule", 2);
 x([
-  S()
+  k()
 ], $.prototype, "scheduleTime", 2);
 x([
-  S()
+  k()
 ], $.prototype, "scheduleWeekday", 2);
 x([
-  S()
+  k()
 ], $.prototype, "notifyNewSuggestions", 2);
 x([
-  S()
+  k()
 ], $.prototype, "settingsNotice", 2);
 x([
-  S()
+  k()
 ], $.prototype, "copied", 2);
 x([
-  S()
+  k()
 ], $.prototype, "draftYaml", 2);
 x([
-  S()
+  k()
 ], $.prototype, "draftValidation", 2);
 x([
-  S()
+  k()
 ], $.prototype, "draftError", 2);
 x([
-  S()
+  k()
 ], $.prototype, "dialog", 2);
 x([
-  S()
+  k()
 ], $.prototype, "feedbackReason", 2);
 x([
-  S()
+  k()
 ], $.prototype, "feedbackNote", 2);
 x([
-  S()
+  k()
 ], $.prototype, "renameText", 2);
+x([
+  k()
+], $.prototype, "pendingChange", 2);
 $ = x([
-  Oi("haos-ai-panel")
+  Ti("haos-ai-panel")
 ], $);
 export {
   $ as HaosAiPanel

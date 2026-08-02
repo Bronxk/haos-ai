@@ -29,9 +29,14 @@ def create_provider(
     if provider == PROVIDER_ANTHROPIC:
         return AnthropicClient(session, api_key, base_url, model)
     if provider in (PROVIDER_DEEPSEEK, PROVIDER_OPENAI_COMPATIBLE):
-        return OpenAICompatibleClient(session, api_key, base_url, model)
+        return OpenAICompatibleClient(
+            session,
+            api_key,
+            base_url,
+            model,
+            include_tool_choice=provider != PROVIDER_DEEPSEEK,
+        )
     raise ValueError(f"Unsupported provider: {provider}")
 
 
 __all__ = ["ProviderClient", "create_provider"]
-

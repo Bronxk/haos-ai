@@ -35,6 +35,12 @@ LOCATION_KEYS = frozenset(
 SAFE_LOCATION_KEYS = frozenset({"source_type"})
 URL_CREDENTIALS_RE = re.compile(r"(https?://)([^/@:\s]+):([^/@\s]+)@", re.I)
 BEARER_RE = re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]+", re.I)
+SECRET_ASSIGNMENT_RE = re.compile(
+    r"\b(access[_ -]?token|api[_ -]?key|password|pin|secret)"
+    r"(\s*[:=]\s*)"
+    r"([^\s,;]+)",
+    re.I,
+)
 URL_RE = re.compile(r"https?://[^\s\"'<>]+", re.I)
 SENSITIVE_QUERY_PARTS = frozenset(
     {"access_token", "api_key", "auth", "code", "key", "secret", "sig", "token"}
@@ -91,11 +97,27 @@ def _redact_url(match: re.Match[str]) -> str:
             else:
                 query.append((key, value))
         path_parts = parsed.path.split("/")
-        if "webhook" in path_parts:
-            index = path_parts.index("webhook")
+        folded_path_parts = [part.casefold() for part in path_parts]
+        if "webhook" in folded_path_parts:
+            index = folded_path_parts.index("webhook")
             if index + 1 < len(path_parts) and path_parts[index + 1]:
                 path_parts[index + 1] = "[REDACTED]"
                 changed = True
+        fragment = parsed.fragment
+        if fragment:
+            fragment_pairs = parse_qsl(fragment, keep_blank_values=True)
+            if fragment_pairs:
+                cleaned_fragment: list[tuple[str, str]] = []
+                for key, value in fragment_pairs:
+                    if any(
+                        part in key.casefold()
+                        for part in SENSITIVE_QUERY_PARTS
+                    ):
+                        cleaned_fragment.append((key, "[REDACTED]"))
+                        changed = True
+                    else:
+                        cleaned_fragment.append((key, value))
+                fragment = urlencode(cleaned_fragment)
         if not changed:
             return raw
         return urlunsplit(
@@ -104,7 +126,7 @@ def _redact_url(match: re.Match[str]) -> str:
                 host,
                 "/".join(path_parts),
                 urlencode(query),
-                parsed.fragment,
+                fragment,
             )
         )
     except ValueError:
@@ -118,7 +140,13 @@ def redact_text(value: str) -> tuple[str, bool]:
     url_changed = url_updated != updated
     updated = url_updated
     updated, bearer_count = BEARER_RE.subn("Bearer [REDACTED]", updated)
-    return updated, bool(url_count or url_changed or bearer_count)
+    updated, assignment_count = SECRET_ASSIGNMENT_RE.subn(
+        lambda match: f"{match.group(1)}{match.group(2)}[REDACTED]",
+        updated,
+    )
+    return updated, bool(
+        url_count or url_changed or bearer_count or assignment_count
+    )
 
 
 def sanitize(

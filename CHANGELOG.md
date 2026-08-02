@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.3
+
+- Fixed provider selection so DeepSeek connections no longer render as OpenAI
+  when the saved endpoint or model clearly identifies DeepSeek.
+- Added the `I WANT AUTOMATION HELL` advisor style for maximum evidence-backed
+  automation discovery without weakening validation or approval requirements.
+- Added filter-aware inbox clearing with an explicit destructive confirmation.
+- Added granular, default-off approval capabilities for creating and updating
+  validated automations and removing confirmed orphaned entities or devices.
+- Kept scans and provider chat read-only: every proposed Home Assistant change
+  requires a separate administrator review and approval in the panel.
+- Revalidate registry targets immediately before removal so an entity or device
+  that became active again cannot be deleted from an old suggestion.
+
 ## 1.0.2
 
 - Preserved DeepSeek V4 `reasoning_content` across multi-round tool calls so

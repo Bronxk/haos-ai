@@ -17,6 +17,19 @@ from .base import (
 class OpenAICompatibleClient(ProviderClient):
     """Adapter for DeepSeek and OpenAI-compatible APIs."""
 
+    def __init__(
+        self,
+        session: Any,
+        api_key: str,
+        base_url: str,
+        model: str,
+        *,
+        include_tool_choice: bool = True,
+    ) -> None:
+        """Configure optional fields supported by the selected endpoint."""
+        super().__init__(session, api_key, base_url, model)
+        self.include_tool_choice = include_tool_choice
+
     def _headers(self) -> dict[str, str]:
         return {
             "Authorization": f"Bearer {self.api_key}",
@@ -86,7 +99,8 @@ class OpenAICompatibleClient(ProviderClient):
                 }
                 for tool in tools
             ]
-            payload["tool_choice"] = "auto"
+            if self.include_tool_choice:
+                payload["tool_choice"] = "auto"
         data = await self._post_json(
             "/chat/completions", payload, self._headers(), timeout
         )

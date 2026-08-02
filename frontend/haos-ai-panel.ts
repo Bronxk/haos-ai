@@ -16,6 +16,11 @@ interface HomeAssistant {
       eventType: string,
     ): Promise<Unsubscribe>;
   };
+  callApi?<T>(
+    method: "GET" | "POST" | "PUT" | "DELETE",
+    path: string,
+    parameters?: unknown,
+  ): Promise<T>;
   themes?: { darkMode?: boolean };
   states?: Record<string, HassState>;
   localize?(key: string): string;
@@ -62,6 +67,13 @@ interface Suggestion {
     config?: { description?: string };
     yaml: string;
     validation: ValidationResult;
+    target_id?: string | null;
+  };
+  operation?: {
+    type: "remove_entity" | "remove_device";
+    target_id: string;
+    label: string;
+    config_entry_id?: string | null;
   };
 }
 
@@ -139,6 +151,7 @@ interface Overview {
     advisor_mode?: "conservative" | "balanced" | "ambitious";
     scan_depth?: "focused" | "standard" | "thorough";
     automation_complexity?: "simple" | "normal" | "advanced";
+    change_permissions?: ChangePermissions;
     fix_existing_first?: boolean;
     avoid_new_hardware?: boolean;
     dismissal_feedback?: Array<Record<string, unknown>>;
@@ -173,9 +186,34 @@ interface ProgressEvent {
   thread_id?: string;
 }
 
+interface ChangePermissions {
+  create_automations: boolean;
+  update_automations: boolean;
+  remove_entities: boolean;
+  remove_devices: boolean;
+}
+
+interface PendingChange {
+  kind:
+    | "create_automation"
+    | "update_automation"
+    | "remove_entity"
+    | "remove_device";
+  suggestionId: string;
+  targetId: string;
+  label: string;
+  configEntryId?: string;
+}
+
 type Tab = "inbox" | "chat" | "activity" | "settings";
 type Filter = "new" | "saved" | "dismissed" | "all";
-type Dialog = "feedback" | "rename" | "delete-thread" | null;
+type Dialog =
+  | "feedback"
+  | "rename"
+  | "delete-thread"
+  | "clear-inbox"
+  | "approve-change"
+  | null;
 
 const FEEDBACK_REASONS = [
   "Already handled",
@@ -225,6 +263,12 @@ export class HaosAiPanel extends LitElement {
   @state() private automationComplexity = "normal";
   @state() private fixExistingFirst = true;
   @state() private avoidNewHardware = true;
+  @state() private changePermissions: ChangePermissions = {
+    create_automations: false,
+    update_automations: false,
+    remove_entities: false,
+    remove_devices: false,
+  };
   @state() private quietStart = "22:00";
   @state() private quietEnd = "07:00";
   @state() private providerDraft = "";
@@ -247,6 +291,7 @@ export class HaosAiPanel extends LitElement {
   @state() private feedbackReason = "";
   @state() private feedbackNote = "";
   @state() private renameText = "";
+  @state() private pendingChange?: PendingChange;
 
   private started = false;
   private unsubscribeProgress?: Unsubscribe;
@@ -344,9 +389,17 @@ export class HaosAiPanel extends LitElement {
       preferences.automation_complexity ?? "normal";
     this.fixExistingFirst = preferences.fix_existing_first !== false;
     this.avoidNewHardware = preferences.avoid_new_hardware !== false;
+    this.changePermissions = {
+      create_automations:
+        preferences.change_permissions?.create_automations === true,
+      update_automations:
+        preferences.change_permissions?.update_automations === true,
+      remove_entities: preferences.change_permissions?.remove_entities === true,
+      remove_devices: preferences.change_permissions?.remove_devices === true,
+    };
     this.quietStart = preferences.quiet_hours?.start ?? "22:00";
     this.quietEnd = preferences.quiet_hours?.end ?? "07:00";
-    this.providerDraft = overview.provider;
+    this.providerDraft = this.resolveProvider(overview);
     this.modelDraft = overview.model;
     this.baseUrlDraft = overview.base_url;
     this.apiKeyDraft = "";
@@ -361,6 +414,26 @@ export class HaosAiPanel extends LitElement {
     this.scheduleWeekday = overview.options.schedule_weekday ?? 0;
     this.notifyNewSuggestions =
       overview.options.notify_new_suggestions !== false;
+  }
+
+  private resolveProvider(overview: Overview): string {
+    const endpoint = overview.base_url.toLocaleLowerCase();
+    const model = overview.model.toLocaleLowerCase();
+    const inferred = overview.provider_options.find((option) => {
+      if (
+        option.id !== "openai_compatible" &&
+        option.default_base_url &&
+        endpoint.startsWith(option.default_base_url.toLocaleLowerCase())
+      ) {
+        return true;
+      }
+      return option.id === "deepseek" && model.startsWith("deepseek");
+    });
+    if (inferred) return inferred.id;
+    const exact = overview.provider_options.find(
+      (option) => option.id === overview.provider,
+    );
+    return exact?.id ?? overview.provider_options[0]?.id ?? "openai";
   }
 
   private get filteredSuggestions(): Suggestion[] {
@@ -577,6 +650,7 @@ export class HaosAiPanel extends LitElement {
           automation_complexity: this.automationComplexity,
           fix_existing_first: this.fixExistingFirst,
           avoid_new_hardware: this.avoidNewHardware,
+          change_permissions: this.changePermissions,
           quiet_hours: { start: this.quietStart, end: this.quietEnd },
         },
       });
@@ -664,6 +738,128 @@ export class HaosAiPanel extends LitElement {
     if (next && usingPreviousEndpoint) this.baseUrlDraft = next.default_base_url;
     this.apiKeyDraft = "";
     this.settingsNotice = "";
+  }
+
+  private openClearInbox(): void {
+    if (this.filteredSuggestions.length === 0) return;
+    this.dialog = "clear-inbox";
+  }
+
+  private async clearInbox(): Promise<void> {
+    const status = this.filter === "all" ? undefined : this.filter;
+    this.dialog = null;
+    this.busy = true;
+    try {
+      await this.call("haos_ai/suggestions/clear", {
+        ...(status ? { status } : {}),
+      });
+      this.selectedId = undefined;
+      await this.loadOverview();
+    } catch (error) {
+      this.error = this.describeError(error);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private changeFor(item: Suggestion): PendingChange | undefined {
+    if (item.automation) {
+      return {
+        kind: item.automation.target_id
+          ? "update_automation"
+          : "create_automation",
+        suggestionId: item.id,
+        targetId: item.automation.target_id ?? "new automation",
+        label: item.title,
+      };
+    }
+    if (!item.operation) return undefined;
+    return {
+      kind: item.operation.type,
+      suggestionId: item.id,
+      targetId: item.operation.target_id,
+      label: item.operation.label,
+      configEntryId: item.operation.config_entry_id ?? undefined,
+    };
+  }
+
+  private canApply(change: PendingChange): boolean {
+    return {
+      create_automation: this.changePermissions.create_automations,
+      update_automation: this.changePermissions.update_automations,
+      remove_entity: this.changePermissions.remove_entities,
+      remove_device: this.changePermissions.remove_devices,
+    }[change.kind];
+  }
+
+  private openChangeApproval(item: Suggestion): void {
+    const change = this.changeFor(item);
+    if (!change || !this.canApply(change)) return;
+    this.pendingChange = change;
+    this.dialog = "approve-change";
+  }
+
+  private async approveChange(): Promise<void> {
+    const change = this.pendingChange;
+    if (!change || !this.canApply(change) || !this.hass) return;
+    this.dialog = null;
+    this.busy = true;
+    this.error = "";
+    try {
+      if (
+        change.kind === "create_automation" ||
+        change.kind === "update_automation"
+      ) {
+        if (!this.draftValidation?.valid) {
+          throw new Error("Validate the current automation draft before approval.");
+        }
+        if (!this.hass.callApi) {
+          throw new Error("Home Assistant's automation config API is unavailable.");
+        }
+        const config = parse(this.draftYaml);
+        if (!config || typeof config !== "object" || Array.isArray(config)) {
+          throw new Error("Automation YAML must contain one object.");
+        }
+        const automationId =
+          change.kind === "update_automation"
+            ? change.targetId
+            : crypto.randomUUID().replaceAll("-", "");
+        await this.hass.callApi(
+          "POST",
+          `config/automation/config/${automationId}`,
+          config,
+        );
+      } else if (change.kind === "remove_entity") {
+        await this.call("haos_ai/change/apply", {
+          suggestion_id: change.suggestionId,
+          confirm: true,
+        });
+      } else {
+        if (!change.configEntryId) {
+          throw new Error("The device's integration reference is missing.");
+        }
+        await this.call("haos_ai/change/apply", {
+          suggestion_id: change.suggestionId,
+          confirm: true,
+        });
+      }
+      if (
+        change.kind === "create_automation" ||
+        change.kind === "update_automation"
+      ) {
+        await this.call("haos_ai/suggestion/update", {
+          suggestion_id: change.suggestionId,
+          status: "saved",
+        });
+      }
+      this.pendingChange = undefined;
+      this.settingsNotice = "Approved change applied by Home Assistant.";
+      await this.loadOverview();
+    } catch (error) {
+      this.error = this.describeError(error);
+    } finally {
+      this.busy = false;
+    }
   }
 
   private get matchingEntities(): HassState[] {
@@ -973,7 +1169,17 @@ export class HaosAiPanel extends LitElement {
               <h2>Suggestions</h2>
               <p>Nothing is applied automatically.</p>
             </div>
-            <span class="total">${suggestions.length}</span>
+            <div class="inbox-heading-actions">
+              <span class="total">${suggestions.length}</span>
+              <ha-icon-button
+                label=${this.filter === "all"
+                  ? "Clear entire inbox"
+                  : `Clear ${this.filter} suggestions`}
+                icon="mdi:inbox-remove-outline"
+                ?disabled=${this.busy || suggestions.length === 0}
+                @click=${this.openClearInbox}
+              ></ha-icon-button>
+            </div>
           </div>
           <div class="filters" aria-label="Suggestion filters">
             ${(["new", "saved", "dismissed", "all"] as Filter[]).map(
@@ -1061,6 +1267,10 @@ export class HaosAiPanel extends LitElement {
 
   private renderSuggestionDetail(item: Suggestion) {
     const validation = this.draftValidation ?? item.automation?.validation;
+    const proposedChange = this.changeFor(item);
+    const changeAllowed = proposedChange
+      ? this.canApply(proposedChange)
+      : false;
     const explanation =
       item.automation?.explanation ??
       item.automation?.config?.description ??
@@ -1171,7 +1381,9 @@ export class HaosAiPanel extends LitElement {
         <footer class="decision-bar">
           <span>
             <ha-icon icon="mdi:shield-lock-outline"></ha-icon>
-            HAOS AI never writes or enables automations.
+            ${proposedChange && changeAllowed
+              ? "No automatic writes. Every change requires your approval."
+              : "HAOS AI is read-only unless you enable an approval capability."}
           </span>
           <div class="decision-actions">
             ${item.status !== "dismissed"
@@ -1188,6 +1400,25 @@ export class HaosAiPanel extends LitElement {
                     Restore
                   </ha-button>
                 `}
+            ${proposedChange && changeAllowed && item.status !== "dismissed"
+              ? html`
+                  <ha-button
+                    appearance="accent"
+                    ?disabled=${this.busy ||
+                    ((proposedChange.kind === "create_automation" ||
+                      proposedChange.kind === "update_automation") &&
+                      !validation?.valid)}
+                    @click=${() => this.openChangeApproval(item)}
+                  >
+                    <ha-icon icon="mdi:shield-check-outline" slot="start"></ha-icon>
+                    ${proposedChange.kind === "create_automation"
+                      ? "Review & create"
+                      : proposedChange.kind === "update_automation"
+                        ? "Review & update"
+                      : "Review removal"}
+                  </ha-button>
+                `
+              : nothing}
             ${item.status !== "saved"
               ? html`
                   <ha-button
@@ -1578,7 +1809,10 @@ export class HaosAiPanel extends LitElement {
               >
                 ${this.overview.provider_options.map(
                   (provider) => html`
-                    <option value=${provider.id}>${provider.label}</option>
+                    <option
+                      value=${provider.id}
+                      ?selected=${provider.id === this.providerDraft}
+                    >${provider.label}</option>
                   `,
                 )}
               </select>
@@ -1701,6 +1935,7 @@ export class HaosAiPanel extends LitElement {
                   <option value="conservative">Conservative</option>
                   <option value="balanced">Balanced</option>
                   <option value="ambitious">Ambitious</option>
+                  <option value="automation_hell">I WANT AUTOMATION HELL</option>
                 </select>
               </label>
               <label>
@@ -1816,6 +2051,52 @@ export class HaosAiPanel extends LitElement {
             <ha-button appearance="accent" ?disabled=${this.busy} @click=${this.savePreferences}>
               <ha-icon icon="mdi:content-save-outline" slot="start"></ha-icon>
               Save advisor preferences
+            </ha-button>
+          </div>
+        </ha-card>
+
+        <ha-card class="settings-section approval-settings">
+          <div class="settings-section-title">
+            <ha-icon icon="mdi:shield-key-outline"></ha-icon>
+            <div>
+              <h3>Approval-only changes</h3>
+              <p>Let HAOS AI prepare changes, then review every one before Home Assistant applies it.</p>
+            </div>
+          </div>
+          <div class="approval-banner">
+            <ha-icon icon="mdi:account-check-outline"></ha-icon>
+            <span>
+              <strong>Approval is always required.</strong>
+              Scheduled scans and chat can only prepare requests. They can never approve them.
+            </span>
+          </div>
+          <div class="toggle-list divided-toggles capability-list">
+            <label>
+              <input type="checkbox" .checked=${this.changePermissions.create_automations} @change=${(event: Event) =>
+                (this.changePermissions = { ...this.changePermissions, create_automations: (event.target as HTMLInputElement).checked })} />
+              <span><strong>Create validated automations</strong><small>Shows an approval button only after the current YAML passes Home Assistant validation.</small></span>
+            </label>
+            <label>
+              <input type="checkbox" .checked=${this.changePermissions.update_automations} @change=${(event: Event) =>
+                (this.changePermissions = { ...this.changePermissions, update_automations: (event.target as HTMLInputElement).checked })} />
+              <span><strong>Update existing automations</strong><small>Only exact, existing automation config IDs can be proposed and replaced after review.</small></span>
+            </label>
+            <label>
+              <input type="checkbox" .checked=${this.changePermissions.remove_entities} @change=${(event: Event) =>
+                (this.changePermissions = { ...this.changePermissions, remove_entities: (event.target as HTMLInputElement).checked })} />
+              <span><strong>Remove orphaned entities</strong><small>Only exact registry entries missing from the current state machine can be proposed.</small></span>
+            </label>
+            <label>
+              <input type="checkbox" .checked=${this.changePermissions.remove_devices} @change=${(event: Event) =>
+                (this.changePermissions = { ...this.changePermissions, remove_devices: (event.target as HTMLInputElement).checked })} />
+              <span><strong>Remove stale devices</strong><small>Only when the owning integration supports removal and all registered entities are orphaned.</small></span>
+            </label>
+          </div>
+          <div class="settings-action">
+            <span>These permissions expose approval actions; they do not enable autonomy.</span>
+            <ha-button appearance="accent" ?disabled=${this.busy} @click=${this.savePreferences}>
+              <ha-icon icon="mdi:content-save-outline" slot="start"></ha-icon>
+              Save approval permissions
             </ha-button>
           </div>
         </ha-card>
@@ -2022,6 +2303,95 @@ export class HaosAiPanel extends LitElement {
             <ha-button appearance="accent" ?disabled=${!this.renameText.trim()} @click=${this.renameThread}>
               Rename
             </ha-button>
+          </div>
+        </ha-adaptive-dialog>
+      `;
+    }
+    if (this.dialog === "clear-inbox") {
+      const count = this.filteredSuggestions.length;
+      return html`
+        <ha-adaptive-dialog
+          open
+          type="alert"
+          header-title=${this.filter === "all"
+            ? "Clear the entire inbox?"
+            : `Clear ${this.filter} suggestions?`}
+          header-subtitle="Local suggestions only"
+          @closed=${() => (this.dialog = null)}
+        >
+          <div class="dialog-content">
+            <p>
+              This permanently removes ${count} ${count === 1 ? "suggestion" : "suggestions"}
+              from Home Assistant. It does not change devices or automations.
+            </p>
+          </div>
+          <div slot="footer">
+            <ha-button appearance="plain" @click=${() => (this.dialog = null)}>Cancel</ha-button>
+            <ha-button variant="danger" appearance="filled" @click=${this.clearInbox}>
+              Clear ${count}
+            </ha-button>
+          </div>
+        </ha-adaptive-dialog>
+      `;
+    }
+    if (this.dialog === "approve-change" && this.pendingChange) {
+      const change = this.pendingChange;
+      const destructive = !["create_automation", "update_automation"].includes(
+        change.kind,
+      );
+      return html`
+        <ha-adaptive-dialog
+          open
+          type=${destructive ? "alert" : nothing}
+          header-title=${destructive
+            ? "Approve removal?"
+            : change.kind === "update_automation"
+              ? "Approve automation update?"
+              : "Approve automation creation?"}
+          header-subtitle="Manual approval · one change"
+          @closed=${() => {
+            this.dialog = null;
+            this.pendingChange = undefined;
+          }}
+        >
+          <div class="dialog-content approval-review">
+            <div class="approval-banner">
+              <ha-icon icon="mdi:shield-check-outline"></ha-icon>
+              <span>
+                <strong>HAOS AI cannot approve this.</strong>
+                Home Assistant applies it only after you press the button below.
+              </span>
+            </div>
+            <dl>
+              <div><dt>Action</dt><dd>${change.kind.replaceAll("_", " ")}</dd></div>
+              <div><dt>Target</dt><dd>${change.label}</dd></div>
+              <div><dt>Identifier</dt><dd><code>${change.targetId}</code></dd></div>
+            </dl>
+            ${change.kind === "create_automation" ||
+            change.kind === "update_automation"
+              ? html`
+                  <details>
+                    <summary>Inspect validated YAML</summary>
+                    <pre><code>${this.draftYaml}</code></pre>
+                  </details>
+                `
+              : html`<p class="danger-copy">Removal may be irreversible. A future scan cannot restore registry data.</p>`}
+          </div>
+          <div slot="footer">
+            <ha-button appearance="plain" @click=${() => {
+              this.dialog = null;
+              this.pendingChange = undefined;
+            }}>Cancel</ha-button>
+            <ha-button
+              variant=${destructive ? "danger" : nothing}
+              appearance=${destructive ? "filled" : "accent"}
+              ?disabled=${this.busy}
+              @click=${this.approveChange}
+            >${destructive
+              ? "Approve & remove"
+              : change.kind === "update_automation"
+                ? "Approve & update"
+                : "Approve & create"}</ha-button>
           </div>
         </ha-adaptive-dialog>
       `;
@@ -2451,6 +2821,12 @@ export class HaosAiPanel extends LitElement {
     .total {
       color: var(--haos-muted);
       font-variant-numeric: tabular-nums;
+    }
+
+    .inbox-heading-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--ha-space-1, 4px);
     }
 
     .filters {
@@ -3140,6 +3516,38 @@ export class HaosAiPanel extends LitElement {
       font-size: var(--ha-font-size-s, 13px);
     }
 
+    .approval-banner {
+      padding: var(--ha-space-3, 12px);
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: start;
+      gap: var(--ha-space-3, 12px);
+      border: 1px solid color-mix(in srgb, var(--haos-primary) 30%, var(--haos-divider));
+      border-radius: var(--ha-border-radius-lg, 10px);
+      color: var(--haos-text);
+      background: var(--haos-selected);
+      line-height: var(--ha-line-height-normal, 1.5);
+      font-size: var(--ha-font-size-s, 13px);
+    }
+
+    .approval-settings > .approval-banner {
+      margin: var(--ha-space-5, 20px);
+    }
+
+    .approval-banner > ha-icon {
+      color: var(--haos-primary);
+    }
+
+    .approval-banner span {
+      display: grid;
+      gap: 2px;
+    }
+
+    .capability-list {
+      margin-top: 0;
+      border-top: 0;
+    }
+
     .settings-fields,
     .goal-grid,
     .settings-subsection,
@@ -3512,6 +3920,38 @@ export class HaosAiPanel extends LitElement {
     .dialog-content > p {
       color: var(--haos-muted);
       line-height: var(--ha-line-height-normal, 1.55);
+    }
+
+    .approval-review {
+      display: grid;
+      gap: var(--ha-space-4, 16px);
+    }
+
+    .approval-review dl {
+      margin: 0;
+      border-top: 1px solid var(--haos-divider);
+    }
+
+    .approval-review dl > div {
+      padding: var(--ha-space-3, 12px) 0;
+      display: grid;
+      grid-template-columns: minmax(100px, 0.35fr) minmax(0, 1fr);
+      gap: var(--ha-space-3, 12px);
+      border-bottom: 1px solid var(--haos-divider);
+    }
+
+    .approval-review dt {
+      color: var(--haos-muted);
+    }
+
+    .approval-review dd {
+      min-width: 0;
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .danger-copy {
+      color: var(--haos-error) !important;
     }
 
     .category-list {

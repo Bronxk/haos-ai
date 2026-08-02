@@ -56,6 +56,40 @@ def test_webhook_and_sensitive_query_values_are_removed() -> None:
     assert "view=compact" in cleaned
 
 
+def test_secret_assignments_and_url_fragments_are_removed() -> None:
+    value = (
+        "api_key=sk-test-canary password:correct-horse "
+        "https://ha.example/API/WEBHOOK/path-canary#token=fragment-canary"
+    )
+
+    cleaned, changed = redact_text(value)
+
+    assert changed is True
+    assert "sk-test-canary" not in cleaned
+    assert "correct-horse" not in cleaned
+    assert "path-canary" not in cleaned
+    assert "fragment-canary" not in cleaned
+    assert cleaned.count("[REDACTED]") == 3
+    assert "token=%5BREDACTED%5D" in cleaned
+
+
+def test_canaries_are_removed_from_nested_free_text() -> None:
+    payload = {
+        "friendly_name": "Authorization: Bearer bearer-canary",
+        "notes": [
+            "secret=plain-canary",
+            "https://user:url-canary@example.test/path",
+        ],
+    }
+
+    cleaned, paths = sanitize(payload)
+    serialized = str(cleaned)
+
+    for canary in ("bearer-canary", "plain-canary", "url-canary"):
+        assert canary not in serialized
+    assert paths == ["friendly_name", "notes[0]", "notes[1]"]
+
+
 def test_location_metadata_is_redacted_by_default() -> None:
     cleaned, paths = sanitize({"gps_accuracy": 8, "location": "51.0,7.0"})
     assert cleaned == {

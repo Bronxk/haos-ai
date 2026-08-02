@@ -272,14 +272,13 @@ class ProviderClient(ABC):
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=timeout),
             ) as response:
-                body = await response.text()
                 if response.status in (401, 403):
                     raise ProviderAuthError("Provider rejected the API key")
                 if response.status == 429:
                     raise ProviderRateLimitError("Provider rate limit reached")
                 if response.status >= 400:
                     raise ProviderError(
-                        f"Provider returned HTTP {response.status}: {body[:400]}"
+                        f"Provider returned HTTP {response.status}"
                     )
                 try:
                     value = await response.json()

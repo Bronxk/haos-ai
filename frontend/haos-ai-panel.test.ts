@@ -240,4 +240,145 @@ describe("haos-ai-panel", () => {
     expect(text).toContain("binary_sensor.offline_item");
     expect(text).toContain("Not currently found");
   });
+
+  it("selects DeepSeek from the connected endpoint instead of defaulting to OpenAI", async () => {
+    const overview = {
+      version: "1.0.2",
+      provider: "openai",
+      model: "deepseek-v4-flash",
+      base_url: "https://api.deepseek.com",
+      provider_options: [
+        { id: "openai", label: "OpenAI", default_model: "gpt-5.6", default_base_url: "https://api.openai.com/v1" },
+        { id: "deepseek", label: "DeepSeek", default_model: "deepseek-v4-flash", default_base_url: "https://api.deepseek.com" },
+      ],
+      goal_presets: [],
+      options: { schedule: "manual", history_days: 30 },
+      suggestions: [],
+      counts: { new: 0, saved: 0, dismissed: 0 },
+      scan_runs: [],
+      preferences: {
+        goals: [], ignored_categories: [], ignored_entities: [], notes: [], quiet_hours: null,
+      },
+    };
+    const panel = document.createElement("haos-ai-panel");
+    document.body.append(panel);
+    panel.hass = { connection: { sendMessagePromise: vi.fn().mockResolvedValue(overview) } };
+    await panel.updateComplete;
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    await panel.updateComplete;
+
+    const settingsTab = [...(panel.shadowRoot?.querySelectorAll(".tabs button") ?? [])]
+      .find((button) => button.textContent?.includes("Settings")) as HTMLElement;
+    settingsTab.click();
+    await panel.updateComplete;
+
+    expect(panel.shadowRoot?.querySelector<HTMLSelectElement>(".settings-fields select")?.value)
+      .toBe("deepseek");
+    expect(panel.shadowRoot?.textContent).toContain("I WANT AUTOMATION HELL");
+  });
+
+  it("requires a second explicit click before creating an automation", async () => {
+    const suggestion = {
+      id: "suggestion-approval",
+      title: "Approved hall light",
+      summary: "Create a hall light routine.",
+      rationale: "The pattern is repeated.",
+      kind: "automation",
+      status: "new",
+      confidence: 0.9,
+      impact: "medium",
+      created_at: new Date().toISOString(),
+      evidence: [{ source_type: "history", source_id: "light.hall", observation: "Repeated pattern" }],
+      automation: {
+        explanation: "Turns on the hall light.",
+        yaml: "alias: Hall light\ntriggers: []\nactions: []\n",
+        validation: { valid: true, errors: {} },
+      },
+    };
+    const overview = {
+      version: "1.0.2",
+      provider: "deepseek",
+      model: "deepseek-v4-flash",
+      base_url: "https://api.deepseek.com",
+      provider_options: [{ id: "deepseek", label: "DeepSeek", default_model: "deepseek-v4-flash", default_base_url: "https://api.deepseek.com" }],
+      goal_presets: [],
+      options: { schedule: "manual", history_days: 30 },
+      suggestions: [suggestion],
+      counts: { new: 1, saved: 0, dismissed: 0 },
+      scan_runs: [],
+      preferences: {
+        goals: [], ignored_categories: [], ignored_entities: [], notes: [], quiet_hours: null,
+        change_permissions: {
+          create_automations: true,
+          update_automations: false,
+          remove_entities: false,
+          remove_devices: false,
+        },
+      },
+    };
+    const sendMessagePromise = vi.fn().mockResolvedValue(overview);
+    const callApi = vi.fn().mockResolvedValue({ result: "ok" });
+    const panel = document.createElement("haos-ai-panel");
+    document.body.append(panel);
+    panel.hass = { connection: { sendMessagePromise }, callApi };
+    await panel.updateComplete;
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    await panel.updateComplete;
+
+    panel.shadowRoot?.querySelector<HTMLButtonElement>(".suggestion-row")?.click();
+    await panel.updateComplete;
+    const review = [...(panel.shadowRoot?.querySelectorAll("ha-button") ?? [])]
+      .find((button) => button.textContent?.includes("Review & create")) as HTMLElement;
+    review.click();
+    await panel.updateComplete;
+    expect(callApi).not.toHaveBeenCalled();
+
+    const approve = [...(panel.shadowRoot?.querySelectorAll("ha-adaptive-dialog ha-button") ?? [])]
+      .find((button) => button.textContent?.includes("Approve & create")) as HTMLElement;
+    approve.click();
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+
+    expect(callApi).toHaveBeenCalledWith(
+      "POST",
+      expect.stringMatching(/^config\/automation\/config\/[a-f0-9]{32}$/),
+      expect.objectContaining({ alias: "Hall light" }),
+    );
+  });
+
+  it("clears only the currently selected inbox view after confirmation", async () => {
+    const overview = {
+      version: "1.0.2",
+      provider: "openai",
+      model: "gpt-5.6",
+      base_url: "https://api.openai.com/v1",
+      provider_options: [{ id: "openai", label: "OpenAI", default_model: "gpt-5.6", default_base_url: "https://api.openai.com/v1" }],
+      goal_presets: [], options: { schedule: "manual" }, scan_runs: [],
+      suggestions: [{
+        id: "clear-me", title: "Clear me", summary: "Summary", rationale: "Reason",
+        kind: "hygiene", status: "new", confidence: 0.8, impact: "low",
+        created_at: new Date().toISOString(), evidence: [],
+      }],
+      counts: { new: 1, saved: 0, dismissed: 0 },
+      preferences: { goals: [], ignored_categories: [], ignored_entities: [], notes: [], quiet_hours: null },
+    };
+    const sendMessagePromise = vi.fn().mockResolvedValue(overview);
+    const panel = document.createElement("haos-ai-panel");
+    document.body.append(panel);
+    panel.hass = { connection: { sendMessagePromise } };
+    await panel.updateComplete;
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    await panel.updateComplete;
+
+    panel.shadowRoot?.querySelector<HTMLElement>('.inbox-heading-actions ha-icon-button')?.click();
+    await panel.updateComplete;
+    const clear = [...(panel.shadowRoot?.querySelectorAll("ha-adaptive-dialog ha-button") ?? [])]
+      .find((button) => button.textContent?.includes("Clear 1")) as HTMLElement;
+    clear.click();
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+
+    expect(sendMessagePromise).toHaveBeenCalledWith({
+      type: "haos_ai/suggestions/clear",
+      status: "new",
+    });
+  });
 });

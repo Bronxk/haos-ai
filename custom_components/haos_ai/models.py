@@ -66,6 +66,17 @@ class AutomationProposal:
         default_factory=lambda: ValidationResult(valid=False)
     )
     explanation: str = ""
+    target_id: str | None = None
+
+
+@dataclass(slots=True)
+class ProposedOperation:
+    """One narrowly-scoped Home Assistant change awaiting user approval."""
+
+    type: str
+    target_id: str
+    label: str
+    config_entry_id: str | None = None
 
 
 @dataclass(slots=True)
@@ -86,6 +97,7 @@ class Recommendation:
     parent_id: str | None = None
     privacy_receipt_id: str | None = None
     automation: AutomationProposal | None = None
+    operation: ProposedOperation | None = None
     dismissal_reason: str | None = None
     occurrences: int = 1
     last_seen_at: str = field(default_factory=utcnow_iso)
@@ -110,6 +122,21 @@ class Recommendation:
                     or raw.get("config", {}).get("description")
                     or ""
                 ),
+                target_id=(
+                    str(raw["target_id"]) if raw.get("target_id") else None
+                ),
+            )
+        operation = None
+        if isinstance(raw_operation := data.get("operation"), dict):
+            operation = ProposedOperation(
+                type=str(raw_operation.get("type", "")),
+                target_id=str(raw_operation.get("target_id", "")),
+                label=str(raw_operation.get("label", "")),
+                config_entry_id=(
+                    str(raw_operation["config_entry_id"])
+                    if raw_operation.get("config_entry_id")
+                    else None
+                ),
             )
         return cls(
             id=str(data.get("id") or uuid.uuid4().hex),
@@ -126,6 +153,7 @@ class Recommendation:
             parent_id=data.get("parent_id"),
             privacy_receipt_id=data.get("privacy_receipt_id"),
             automation=automation,
+            operation=operation,
             dismissal_reason=data.get("dismissal_reason"),
             occurrences=max(1, int(data.get("occurrences", 1))),
             last_seen_at=str(

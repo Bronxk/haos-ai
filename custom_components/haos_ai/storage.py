@@ -17,6 +17,7 @@ from .const import (
     AUTOMATION_COMPLEXITIES,
     DEFAULT_ADVISOR_MODE,
     DEFAULT_AUTOMATION_COMPLEXITY,
+    DEFAULT_CHANGE_PERMISSIONS,
     DEFAULT_SCAN_DEPTH,
     MAX_CHAT_MESSAGES,
     MAX_SUGGESTIONS,
@@ -53,6 +54,7 @@ def default_data() -> dict[str, Any]:
             "fix_existing_first": True,
             "avoid_new_hardware": True,
             "dismissal_feedback": [],
+            "change_permissions": dict(DEFAULT_CHANGE_PERMISSIONS),
         },
         "privacy_receipts": [],
         "scan_runs": [],
@@ -76,6 +78,9 @@ def normalize_preferences(
     complexity = str(
         incoming.get("automation_complexity", DEFAULT_AUTOMATION_COMPLEXITY)
     )
+    raw_permissions = incoming.get("change_permissions", {})
+    if not isinstance(raw_permissions, dict):
+        raw_permissions = {}
     return {
         "quiet_hours": quiet_hours,
         "goals": [str(value)[:200] for value in incoming.get("goals", [])[:20]],
@@ -101,6 +106,10 @@ def normalize_preferences(
         ),
         "fix_existing_first": bool(incoming.get("fix_existing_first", True)),
         "avoid_new_hardware": bool(incoming.get("avoid_new_hardware", True)),
+        "change_permissions": {
+            key: bool(raw_permissions.get(key, default))
+            for key, default in DEFAULT_CHANGE_PERMISSIONS.items()
+        },
         "dismissal_feedback": list(
             dismissal_feedback
             if dismissal_feedback is not None
@@ -241,6 +250,19 @@ class AdvisorStore:
         item["status"] = status
         item["dismissal_reason"] = reason
         return item
+
+    def clear_suggestions(self, status: str | None = None) -> int:
+        """Remove suggestions in one inbox view and return the count."""
+        before = len(self.data["suggestions"])
+        if status is None:
+            self.data["suggestions"] = []
+        else:
+            self.data["suggestions"] = [
+                item
+                for item in self.data["suggestions"]
+                if item.get("status") != status
+            ]
+        return before - len(self.data["suggestions"])
 
     def record_dismissal_feedback(
         self, item: dict[str, Any], reason: str

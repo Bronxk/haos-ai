@@ -133,3 +133,38 @@ def test_preferences_are_bounded_and_preserve_pasted_entity_ids() -> None:
     assert preferences["scan_depth"] == "thorough"
     assert preferences["automation_complexity"] == "advanced"
     assert preferences["quiet_hours"] == {"start": "22:00", "end": "07:00"}
+
+
+def test_change_permissions_are_off_by_default_and_bounded() -> None:
+    defaults = normalize_preferences({})
+    enabled = normalize_preferences(
+        {
+            "advisor_mode": "automation_hell",
+            "change_permissions": {
+                "create_automations": True,
+                "remove_devices": True,
+                "unknown_future_permission": True,
+            },
+        }
+    )
+
+    assert not any(defaults["change_permissions"].values())
+    assert enabled["advisor_mode"] == "automation_hell"
+    assert enabled["change_permissions"] == {
+        "create_automations": True,
+        "update_automations": False,
+        "remove_entities": False,
+        "remove_devices": True,
+    }
+
+
+def test_clear_suggestions_can_target_one_view() -> None:
+    store = AdvisorStore.__new__(AdvisorStore)
+    store.data = default_data()
+    first = _recommendation("New", kind=RecommendationKind.HYGIENE)
+    saved = _recommendation("Saved", kind=RecommendationKind.HYGIENE)
+    saved.status = "saved"  # type: ignore[assignment]
+    store.add_suggestions([first, saved])
+
+    assert store.clear_suggestions("new") == 1
+    assert [item["title"] for item in store.data["suggestions"]] == ["Saved"]

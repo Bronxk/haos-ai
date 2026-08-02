@@ -477,6 +477,7 @@ class ContextEngine:
     def hygiene_candidates(self) -> dict[str, Any]:
         """Generate deterministic local candidates before spending tokens."""
         registry = er.async_get(self.hass)
+        device_registry = dr.async_get(self.hass)
         states = {state.entity_id: state for state in self.hass.states.async_all()}
         unavailable = [
             entity_id
@@ -485,15 +486,65 @@ class ContextEngine:
         ]
         unassigned: list[str] = []
         disabled: list[str] = []
+        orphaned: list[dict[str, str]] = []
+        entities_by_device: dict[str, list[str]] = {}
         for entry in registry.entities.values():
+            if entry.device_id:
+                entities_by_device.setdefault(entry.device_id, []).append(
+                    entry.entity_id
+                )
             if entry.disabled_by:
                 disabled.append(entry.entity_id)
+            if entry.entity_id not in states and not entry.disabled_by:
+                orphaned.append(
+                    {
+                        "entity_id": entry.entity_id,
+                        "platform": entry.platform,
+                    }
+                )
             if (
                 not entry.entity_category
                 and not self._entity_area_id(entry)
                 and entry.domain not in STATE_DOMAINS_WITHOUT_ROUTINES
             ):
                 unassigned.append(entry.entity_id)
+        stale_devices: list[dict[str, Any]] = []
+        disabled_entity_ids = set(disabled)
+        for device in device_registry.devices.values():
+            entity_ids = entities_by_device.get(device.id, [])
+            if (
+                not entity_ids
+                or any(entity_id in states for entity_id in entity_ids)
+                or any(entity_id in disabled_entity_ids for entity_id in entity_ids)
+            ):
+                continue
+            config_entry_ids = list(getattr(device, "config_entries", ()) or ())
+            if not config_entry_ids and (
+                config_entry_id := getattr(device, "config_entry_id", None)
+            ):
+                config_entry_ids = [config_entry_id]
+            removable_entry_id = next(
+                (
+                    entry_id
+                    for entry_id in config_entry_ids
+                    if (
+                        config_entry := self.hass.config_entries.async_get_entry(
+                            entry_id
+                        )
+                    )
+                    and config_entry.supports_remove_device
+                ),
+                None,
+            )
+            if removable_entry_id:
+                stale_devices.append(
+                    {
+                        "device_id": device.id,
+                        "name": device.name_by_user or device.name or device.id,
+                        "config_entry_id": removable_entry_id,
+                        "orphaned_entities": entity_ids[:20],
+                    }
+                )
         missing_refs: list[dict[str, str]] = []
         automation_rows = self.automations().get("automations", [])
         for automation in automation_rows:
@@ -509,11 +560,15 @@ class ContextEngine:
             "unavailable_entities": unavailable[:100],
             "unassigned_entities": unassigned[:100],
             "disabled_entities": disabled[:100],
+            "orphaned_entities": orphaned[:100],
+            "stale_devices": stale_devices[:50],
             "automation_missing_references": missing_refs[:100],
             "counts": {
                 "unavailable": len(unavailable),
                 "unassigned": len(unassigned),
                 "disabled": len(disabled),
+                "orphaned": len(orphaned),
+                "stale_devices": len(stale_devices),
                 "missing_references": len(missing_refs),
             },
         }

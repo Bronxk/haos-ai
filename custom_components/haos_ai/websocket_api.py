@@ -5,9 +5,13 @@ from __future__ import annotations
 from typing import Any
 
 import voluptuous as vol
+from homeassistant import loader
 from homeassistant.components import websocket_api
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .automation_validation import async_validate_automation, export_yaml
@@ -218,6 +222,134 @@ async def ws_suggestion_update(
         runtime.store.record_dismissal_feedback(item, msg["reason"])
     await runtime.store.async_save()
     connection.send_result(msg["id"], item)
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "haos_ai/suggestions/clear",
+        vol.Optional("status"): vol.In(
+            [status.value for status in RecommendationStatus]
+        ),
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_suggestions_clear(
+    hass: HomeAssistant, connection: Any, msg: dict[str, Any]
+) -> None:
+    """Clear one suggestion view, or the entire local inbox."""
+    runtime = _runtime(hass)
+    removed = runtime.store.clear_suggestions(msg.get("status"))
+    await runtime.store.async_save()
+    connection.send_result(msg["id"], {"removed": removed})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "haos_ai/change/apply",
+        vol.Required("suggestion_id"): str,
+        vol.Required("confirm"): bool,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_change_apply(
+    hass: HomeAssistant, connection: Any, msg: dict[str, Any]
+) -> None:
+    """Revalidate and apply one explicitly approved registry operation."""
+    runtime = _runtime(hass)
+    if msg["confirm"] is not True:
+        connection.send_error(
+            msg["id"], "approval_required", "Explicit approval is required"
+        )
+        return
+    suggestion = runtime.store.get_suggestion(msg["suggestion_id"])
+    operation = suggestion.get("operation") if suggestion else None
+    if not isinstance(operation, dict):
+        connection.send_error(
+            msg["id"], "not_found", "Approved operation not found"
+        )
+        return
+    operation_type = str(operation.get("type", ""))
+    target_id = str(operation.get("target_id", ""))
+    permission_key = {
+        "remove_entity": "remove_entities",
+        "remove_device": "remove_devices",
+    }.get(operation_type)
+    permissions = runtime.store.data["preferences"].get(
+        "change_permissions", {}
+    )
+    if not permission_key or not permissions.get(permission_key, False):
+        connection.send_error(
+            msg["id"], "permission_disabled", "This approval capability is disabled"
+        )
+        return
+
+    try:
+        if operation_type == "remove_entity":
+            if hass.states.get(target_id):
+                raise HomeAssistantError(
+                    "Entity is active again; run a new scan before removing it"
+                )
+            registry = er.async_get(hass)
+            if (entity_entry := registry.async_get(target_id)) is None:
+                raise HomeAssistantError("Entity registry entry no longer exists")
+            if entity_entry.disabled_by:
+                raise HomeAssistantError(
+                    "Entity is disabled, not orphaned; run a new scan"
+                )
+            registry.async_remove(target_id)
+        else:
+            device_registry = dr.async_get(hass)
+            if (device := device_registry.async_get(target_id)) is None:
+                raise HomeAssistantError("Device registry entry no longer exists")
+            entity_registry = er.async_get(hass)
+            device_entities = er.async_entries_for_device(
+                entity_registry, target_id
+            )
+            if any(item.disabled_by for item in device_entities):
+                raise HomeAssistantError(
+                    "Device has disabled entities; run a new scan"
+                )
+            if any(hass.states.get(item.entity_id) for item in device_entities):
+                raise HomeAssistantError(
+                    "Device has active entities again; run a new scan before "
+                    "removing it"
+                )
+            config_entry_id = str(operation.get("config_entry_id", ""))
+            config_entry = hass.config_entries.async_get_entry(config_entry_id)
+            if config_entry is None or not config_entry.supports_remove_device:
+                raise HomeAssistantError(
+                    "The owning integration no longer supports device removal"
+                )
+            config_entry_ids = set(
+                getattr(device, "config_entries", ()) or ()
+            )
+            if not config_entry_ids and (
+                current_entry_id := getattr(device, "config_entry_id", None)
+            ):
+                config_entry_ids.add(current_entry_id)
+            if config_entry_id not in config_entry_ids:
+                raise HomeAssistantError("Device ownership changed; run a new scan")
+            integration = await loader.async_get_integration(
+                hass, config_entry.domain
+            )
+            component = await integration.async_get_component()
+            if not await component.async_remove_config_entry_device(
+                hass, config_entry, device
+            ):
+                raise HomeAssistantError("The integration rejected device removal")
+            if device_registry.async_get(target_id):
+                device_registry.async_update_device(
+                    target_id, remove_config_entry_id=config_entry_id
+                )
+        runtime.store.update_suggestion(msg["suggestion_id"], "saved")
+        await runtime.store.async_save()
+        connection.send_result(
+            msg["id"], {"applied": True, "operation": operation_type}
+        )
+    except Exception as err:
+        _fail(connection, msg["id"], err)
 
 
 @websocket_api.websocket_command(
@@ -522,6 +654,8 @@ def async_register(hass: HomeAssistant) -> None:
         ws_context_preview,
         ws_scan,
         ws_suggestion_update,
+        ws_suggestions_clear,
+        ws_change_apply,
         ws_chat,
         ws_chat_thread,
         ws_chat_threads,

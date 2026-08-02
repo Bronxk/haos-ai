@@ -72,7 +72,7 @@ async def main() -> None:
 
     assert connection.result[0] == 1
     assert connection.result[1]["provider"] == "openai"
-    assert connection.result[1]["version"] == "1.0.1"
+    assert connection.result[1]["version"] == "1.0.3"
     assert connection.result[1]["goal_presets"]
     options = _validated_options(
         {

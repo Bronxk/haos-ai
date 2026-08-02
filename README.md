@@ -1,12 +1,15 @@
 # HAOS AI
 
-HAOS AI is a read-only, setup-aware AI advisor for Home Assistant. It gives a
+HAOS AI is a setup-aware AI advisor for Home Assistant. It gives a
 directly configured LLM enough sanitized context to propose useful automations
 and flag setup hygiene problems without letting the model control your home.
+The model and all scheduled runs remain read-only. Optional Home Assistant
+changes are performed only after an administrator reviews one request and
+approves that exact change.
 
 The panel provides:
 
-- an evidence-backed suggestion inbox;
+- an evidence-backed suggestion inbox with per-view clearing;
 - editable Home Assistant automation drafts with re-validation, download, and
   a chat-to-draft revision loop;
 - setup-aware, multi-thread chat with bounded read-only context tools;
@@ -15,13 +18,17 @@ The panel provides:
 - a privacy preflight before every manual scan;
 - a local activity and privacy ledger with redactions and token usage;
 - recurring-evidence counters and structured dismissal feedback;
+- conservative through `I WANT AUTOMATION HELL` recommendation styles;
+- granular, default-off approval capabilities for creating/updating validated
+  automations and removing confirmed orphaned registry entries;
 - local preference, chat, scan, and privacy-receipt storage;
 - manual, daily, or weekly scans with optional notifications; and
 - exact-location redaction by default.
 
-HAOS AI never calls Home Assistant services on behalf of the model, never
-creates or enables an automation, and never sends API keys, camera media,
-alarm codes, or lock codes as context.
+HAOS AI never calls Home Assistant services on behalf of the model and never
+sends API keys, camera media, alarm codes, or lock codes as context. Enabling a
+change capability only exposes a review button; it does not grant standing
+approval. Scheduled scans and chat cannot press that button.
 
 ## Requirements
 
@@ -140,7 +147,8 @@ the request.
 
 Open the HAOS AI panel and select **Settings** to change the provider, model,
 key, endpoint, history range, exact-location permission, scan schedule, focus
-areas, scan depth, automation complexity, quiet hours, and ignored entities.
+areas, scan depth, automation complexity, approval capabilities, quiet hours,
+and ignored entities.
 Ignored entities can be searched by friendly name or ID, selected from live
 results, or pasted as comma-, space-, or line-separated entity IDs.
 
@@ -162,6 +170,8 @@ Important boundaries:
 - camera content is never read;
 - alarm and camera attributes use a strict allowlist;
 - provider responses have no service-call or configuration-write tool;
+- all change capabilities are off by default and every individual change needs
+  an administrator's explicit approval in the panel;
 - payload strings and collections are bounded;
 - scans require a visible manual preflight unless a schedule was explicitly
   enabled;
@@ -224,7 +234,8 @@ SHA-256 checksum, and publishes both files to a GitHub release.
 
 - one active provider profile;
 - English UI only;
-- no direct automation import or mutation by design;
+- automation deletion is not offered; creation and updates require validated
+  YAML plus a separate approval step;
 - no semantic/vector memory; local history is deterministic aggregation; and
 - scheduled scans reuse the configured standing consent instead of showing an
   interactive preflight.

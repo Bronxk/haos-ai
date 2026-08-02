@@ -3,6 +3,7 @@
 from custom_components.haos_ai.models import (
     AutomationProposal,
     Evidence,
+    ProposedOperation,
     Recommendation,
     RecommendationKind,
     ValidationResult,
@@ -36,6 +37,30 @@ def test_recommendation_round_trip() -> None:
     assert restored.automation.explanation == (
         "When the door opens, the hall light turns on."
     )
+
+
+def test_proposed_operation_round_trip() -> None:
+    recommendation = Recommendation(
+        title="Remove old bridge",
+        summary="All registered entities are orphaned.",
+        rationale="The integration supports device removal.",
+        kind=RecommendationKind.HYGIENE,
+        evidence=[Evidence("device", "device-123", "No live entities")],
+        confidence=0.9,
+        impact="medium",
+        operation=ProposedOperation(
+            type="remove_device",
+            target_id="device-123",
+            label="Old bridge",
+            config_entry_id="entry-123",
+        ),
+    )
+
+    restored = Recommendation.from_dict(recommendation.to_dict())
+
+    assert restored.operation is not None
+    assert restored.operation.type == "remove_device"
+    assert restored.operation.config_entry_id == "entry-123"
 
 
 def _recommendation(kind: RecommendationKind, title: str) -> Recommendation:

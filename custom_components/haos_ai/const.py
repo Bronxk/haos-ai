@@ -5,7 +5,7 @@ from typing import Final
 DOMAIN: Final = "haos_ai"
 NAME: Final = "HAOS AI"
 MIN_HA_VERSION: Final = "2026.7.0"
-INTEGRATION_VERSION: Final = "1.0.2"
+INTEGRATION_VERSION: Final = "1.0.3"
 
 CONF_PROVIDER: Final = "provider"
 CONF_MODEL: Final = "model"
@@ -64,7 +64,12 @@ GOAL_PRESETS: Final = {
     "performance": "Find performance problems",
 }
 
-ADVISOR_MODES: Final = ("conservative", "balanced", "ambitious")
+ADVISOR_MODES: Final = (
+    "conservative",
+    "balanced",
+    "ambitious",
+    "automation_hell",
+)
 SCAN_DEPTHS: Final = ("focused", "standard", "thorough")
 AUTOMATION_COMPLEXITIES: Final = ("simple", "normal", "advanced")
 
@@ -95,3 +100,10 @@ DEFAULT_NOTIFY_NEW_SUGGESTIONS: Final = True
 DEFAULT_ADVISOR_MODE: Final = "balanced"
 DEFAULT_SCAN_DEPTH: Final = "standard"
 DEFAULT_AUTOMATION_COMPLEXITY: Final = "normal"
+
+DEFAULT_CHANGE_PERMISSIONS: Final = {
+    "create_automations": False,
+    "update_automations": False,
+    "remove_entities": False,
+    "remove_devices": False,
+}

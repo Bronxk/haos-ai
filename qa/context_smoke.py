@@ -44,6 +44,12 @@ async def main() -> None:
     )
     for index in range(101):
         hass.states.async_set(f"sensor.unavailable_{index}", "unavailable")
+    before_states = {
+        state.entity_id: (state.state, dict(state.attributes))
+        for state in hass.states.async_all()
+    }
+    before_entity_count = len(er.async_get(hass).entities)
+    before_device_count = len(dr.async_get(hass).devices)
     engine = ContextEngine(hass)
     preview = await engine.async_baseline_preview()
     assert preview["payload"]["home_summary"]["counts"]["states"] == 102
@@ -62,6 +68,13 @@ async def main() -> None:
     )
     assert detail["data"]["attributes"]["latitude"] == "[REDACTED]"
     assert detail["data"]["attributes"]["api_key"] == "[REDACTED]"
+    after_states = {
+        state.entity_id: (state.state, dict(state.attributes))
+        for state in hass.states.async_all()
+    }
+    assert after_states == before_states
+    assert len(er.async_get(hass).entities) == before_entity_count
+    assert len(dr.async_get(hass).devices) == before_device_count
     await hass.async_stop(force=True)
     print("Context smoke test OK")
 
