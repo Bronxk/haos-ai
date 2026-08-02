@@ -43,6 +43,10 @@ class OpenAICompatibleClient(ProviderClient):
                 "role": role,
                 "content": message.get("content") or "",
             }
+            if role == "assistant" and "reasoning_content" in message:
+                item["reasoning_content"] = str(
+                    message.get("reasoning_content") or ""
+                )
             if calls := message.get("tool_calls"):
                 item["tool_calls"] = [
                     {
@@ -109,6 +113,16 @@ class OpenAICompatibleClient(ProviderClient):
             )
 
         usage = data.get("usage") or {}
+        raw_assistant: dict[str, Any] = {
+            "role": "assistant",
+            "content": message.get("content") or "",
+            "tool_calls": raw_calls,
+        }
+        if "reasoning_content" in message:
+            raw_assistant["reasoning_content"] = str(
+                message.get("reasoning_content") or ""
+            )
+
         return ProviderResponse(
             content=str(message.get("content") or ""),
             tool_calls=calls,
@@ -116,11 +130,7 @@ class OpenAICompatibleClient(ProviderClient):
                 "input_tokens": int(usage.get("prompt_tokens", 0)),
                 "output_tokens": int(usage.get("completion_tokens", 0)),
             },
-            raw_assistant={
-                "role": "assistant",
-                "content": message.get("content") or "",
-                "tool_calls": raw_calls,
-            },
+            raw_assistant=raw_assistant,
         )
 
     async def validate(self) -> None:

@@ -5,7 +5,7 @@ from typing import Final
 DOMAIN: Final = "haos_ai"
 NAME: Final = "HAOS AI"
 MIN_HA_VERSION: Final = "2026.7.0"
-INTEGRATION_VERSION: Final = "1.0.1"
+INTEGRATION_VERSION: Final = "1.0.2"
 
 CONF_PROVIDER: Final = "provider"
 CONF_MODEL: Final = "model"
@@ -76,6 +76,7 @@ SCHEDULES: Final = (SCHEDULE_MANUAL, SCHEDULE_DAILY, SCHEDULE_WEEKLY)
 PANEL_URL: Final = "haos-ai"
 PANEL_COMPONENT: Final = "haos-ai-panel"
 PANEL_ASSET_URL: Final = "/haos_ai/haos-ai-panel.js"
+PANEL_MODULE_URL: Final = f"{PANEL_ASSET_URL}?v={INTEGRATION_VERSION}"
 
 STORAGE_VERSION: Final = 1
 STORAGE_KEY: Final = DOMAIN

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.2
+
+- Preserved DeepSeek V4 `reasoning_content` across multi-round tool calls so
+  thinking mode can continue with the complete provider context.
+- Versioned the registered panel module URL so Home Assistant browsers load the
+  redesigned frontend after an integration update instead of reusing 0.1.x UI.
+
 ## 1.0.1
 
 - Corrected HACS, documentation, release, and issue links to the public

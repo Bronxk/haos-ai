@@ -35,6 +35,7 @@ from .const import (
     DOMAIN,
     PANEL_ASSET_URL,
     PANEL_COMPONENT,
+    PANEL_MODULE_URL,
     PANEL_URL,
     SCHEDULE_DAILY,
     SCHEDULE_WEEKLY,
@@ -69,7 +70,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         config={
             "_panel_custom": {
                 "name": PANEL_COMPONENT,
-                "module_url": PANEL_ASSET_URL,
+                "module_url": PANEL_MODULE_URL,
                 "embed_iframe": False,
                 "trust_external_script": False,
             }

@@ -22,6 +22,7 @@ MESSAGES = [
     {
         "role": "assistant",
         "content": "",
+        "reasoning_content": "I need current Home Assistant context.",
         "tool_calls": [
             {"id": "one", "name": "get_home_summary", "arguments": {}},
             {"id": "two", "name": "get_apps", "arguments": {}},
@@ -60,6 +61,65 @@ def test_openai_compatible_preserves_tool_call_ids() -> None:
     converted = OpenAICompatibleClient._serialize_messages(MESSAGES)
     assert converted[-1]["tool_call_id"] == "two"
     assert converted[2]["tool_calls"][0]["id"] == "one"
+    assert converted[2]["reasoning_content"] == (
+        "I need current Home Assistant context."
+    )
+
+
+class OpenAICompatibleResponseClient(OpenAICompatibleClient):
+    """OpenAI-compatible client with a deterministic provider response."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            None,
+            "test-key",
+            "https://api.example.test",
+            "test-model",
+        )
+
+    async def _post_json(
+        self,
+        path: str,
+        payload: dict[str, Any],
+        headers: dict[str, str],
+        timeout: float,
+    ) -> dict[str, Any]:
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": "",
+                        "reasoning_content": "I should inspect the home summary.",
+                        "tool_calls": [
+                            {
+                                "id": "reasoning-call",
+                                "function": {
+                                    "name": "get_home_summary",
+                                    "arguments": "{}",
+                                },
+                            }
+                        ],
+                    }
+                }
+            ],
+            "usage": {"prompt_tokens": 12, "completion_tokens": 8},
+        }
+
+
+def test_openai_compatible_retains_provider_reasoning_content() -> None:
+    client = OpenAICompatibleResponseClient()
+    response = asyncio.run(client.complete(MESSAGES[:2], [], timeout=1))
+
+    assert response.raw_assistant is not None
+    assert response.raw_assistant["reasoning_content"] == (
+        "I should inspect the home summary."
+    )
+    next_turn = OpenAICompatibleClient._serialize_messages(
+        [response.raw_assistant]
+    )
+    assert next_turn[0]["reasoning_content"] == (
+        "I should inspect the home summary."
+    )
 
 
 class LoopClient(ProviderClient):
