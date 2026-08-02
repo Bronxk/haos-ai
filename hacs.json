@@ -1,0 +1,7 @@
+{
+  "name": "HAOS AI",
+  "homeassistant": "2026.7.0",
+  "hacs": "2.0.0",
+  "hide_default_branch": true,
+  "render_readme": true
+}

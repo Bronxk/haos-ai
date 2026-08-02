@@ -1,0 +1,56 @@
+{
+  "title": "HAOS AI",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Choose an LLM provider",
+        "data": {
+          "provider": "Provider"
+        }
+      },
+      "credentials": {
+        "title": "Connect {provider}",
+        "description": "{privacy}",
+        "data": {
+          "api_key": "API key",
+          "model": "Model",
+          "base_url": "API base URL"
+        }
+      },
+      "reconfigure": {
+        "title": "Change LLM provider",
+        "description": "{privacy}",
+        "data": {
+          "provider": "Provider",
+          "api_key": "New API key",
+          "model": "Model",
+          "base_url": "API base URL"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect to the provider",
+      "invalid_auth": "The provider rejected this API key",
+      "invalid_url": "Enter an HTTPS base URL without credentials, query parameters, or a complete API route. HTTP is allowed only for local endpoints",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "single_instance_allowed": "Only one HAOS AI provider can be active"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Privacy and scan schedule",
+        "data": {
+          "history_days": "Maximum history window (days)",
+          "include_exact_location": "Allow exact location context",
+          "schedule": "Automatic scan schedule",
+          "schedule_time": "Local scan time (HH:MM:SS)",
+          "schedule_weekday": "Weekly scan day (0 Monday – 6 Sunday)",
+          "notify_new_suggestions": "Notify when scheduled scans find new suggestions"
+        }
+      }
+    }
+  }
+}

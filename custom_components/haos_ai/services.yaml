@@ -1,0 +1,3 @@
+scan:
+  name: Run advisor scan
+  description: Run a confirmed HAOS AI scan using the configured provider.

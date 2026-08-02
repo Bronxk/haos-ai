@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HAOS AI panel QA</title>
+    <style>
+      html,
+      body,
+      haos-ai-panel {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+
+      body.dark {
+        color-scheme: dark;
+        --primary-background-color: #111418;
+        --secondary-background-color: #1f2429;
+        --card-background-color: #1b1f23;
+        --primary-text-color: #e6e9ec;
+        --secondary-text-color: #a7b0b8;
+        --divider-color: #343a40;
+        --primary-color: #03a9f4;
+        --success-color: #66bb6a;
+        --warning-color: #ffa726;
+        --error-color: #ef5350;
+        --app-header-background-color: #171b1f;
+        background: var(--primary-background-color);
+      }
+    </style>
+  </head>
+  <body>
+    <haos-ai-panel></haos-ai-panel>
+    <script type="module">
+      if (new URLSearchParams(location.search).has("dark")) {
+        document.body.classList.add("dark");
+      }
+
+      class QaButton extends HTMLElement {
+        connectedCallback() {
+          if (this.shadowRoot) return;
+          const root = this.attachShadow({ mode: "open" });
+          root.innerHTML = `
+            <style>
+              :host { display: inline-flex; vertical-align: middle; }
+              button { min-height: 40px; padding: 0 16px; display: inline-flex;
+                align-items: center; justify-content: center; gap: 8px; border: 0;
+                border-radius: 20px; color: var(--primary-text-color, #212121);
+                background: transparent; font: 500 14px Roboto, sans-serif; cursor: pointer; }
+              :host([appearance="accent"]) button { color: white; background: var(--primary-color, #03a9f4); }
+              :host([appearance="outlined"]) button { border: 1px solid var(--divider-color, #ddd); }
+              :host([variant="danger"]) button { color: white; background: var(--error-color, #d32f2f); }
+              :host([disabled]) { opacity: .45; pointer-events: none; }
+            </style><button type="button"><slot name="start"></slot><slot></slot></button>`;
+        }
+      }
+      class QaIconButton extends HTMLElement {
+        connectedCallback() {
+          if (this.shadowRoot) return;
+          const root = this.attachShadow({ mode: "open" });
+          root.innerHTML = `<style>:host{display:inline-grid;width:40px;height:40px}button{border:0;border-radius:50%;color:var(--secondary-text-color,#727272);background:transparent;font-size:20px;cursor:pointer}button:hover{background:var(--secondary-background-color,#eee)}</style><button type="button" aria-label="${this.getAttribute("label") ?? "Action"}">⋯</button>`;
+        }
+      }
+      class QaIcon extends HTMLElement {
+        connectedCallback() {
+          if (this.shadowRoot) return;
+          const icon = this.getAttribute("icon") ?? "";
+          const glyph = icon.includes("check") ? "✓" : icon.includes("close") ? "×" : icon.includes("chevron") ? "›" : icon.includes("plus") ? "+" : icon.includes("alert") ? "!" : "◇";
+          this.attachShadow({ mode: "open" }).innerHTML = `<style>:host{display:inline-grid;place-items:center;width:24px;height:24px;font:600 17px/1 sans-serif}</style>${glyph}`;
+        }
+      }
+      class QaCard extends HTMLElement {
+        connectedCallback() {
+          if (this.shadowRoot) return;
+          this.attachShadow({ mode: "open" }).innerHTML = `<style>:host{display:block;border:1px solid var(--divider-color,#ddd);border-radius:12px;background:var(--card-background-color,#fff)}</style><slot></slot>`;
+        }
+      }
+      class QaDialog extends HTMLElement {
+        connectedCallback() {
+          if (this.shadowRoot) return;
+          this.attachShadow({ mode: "open" }).innerHTML = `<style>:host{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:#0008}:host(:not([open])){display:none}.box{width:min(680px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;padding:24px;border-radius:16px;color:var(--primary-text-color,#212121);background:var(--card-background-color,#fff);box-shadow:0 12px 48px #0006}h2{margin:0 0 4px;font:500 22px Roboto,sans-serif}p{margin:0 0 20px;color:var(--secondary-text-color,#727272)}footer{margin-top:20px;display:flex;justify-content:flex-end;gap:8px}</style><div class="box"><h2>${this.getAttribute("header-title") ?? ""}</h2><p>${this.getAttribute("header-subtitle") ?? ""}</p><slot></slot><footer><slot name="footer"></slot></footer></div>`;
+        }
+      }
+      customElements.define("ha-button", QaButton);
+      customElements.define("ha-icon-button", QaIconButton);
+      customElements.define("ha-icon", QaIcon);
+      customElements.define("ha-card", QaCard);
+      customElements.define("ha-adaptive-dialog", QaDialog);
+
+      await import("../custom_components/haos_ai/frontend/haos-ai-panel.js");
+
+      const overview = {
+        version: "1.0.0",
+        provider: "openai",
+        model: "gpt-5.6",
+        base_url: "https://api.openai.com/v1",
+        provider_options: [
+          { id: "openai", label: "OpenAI", default_model: "gpt-5.6", default_base_url: "https://api.openai.com/v1" },
+          { id: "anthropic", label: "Anthropic", default_model: "claude-sonnet-5", default_base_url: "https://api.anthropic.com" },
+          { id: "deepseek", label: "DeepSeek", default_model: "deepseek-v4-flash", default_base_url: "https://api.deepseek.com" },
+          { id: "openai_compatible", label: "OpenAI Compatible", default_model: "", default_base_url: "" },
+        ],
+        goal_presets: [
+          { id: "automation_discovery", label: "Find useful automations" },
+          { id: "automation_cleanup", label: "Reduce automation hell" },
+          { id: "entity_cleanup", label: "Clean up unavailable or unused entities" },
+          { id: "reliability", label: "Improve reliability" },
+          { id: "notification_noise", label: "Reduce notification noise" },
+          { id: "energy_savings", label: "Save energy" },
+          { id: "security_safety", label: "Improve security and safety" },
+          { id: "device_health", label: "Maintain batteries and devices" },
+          { id: "organization", label: "Improve naming and organization" },
+          { id: "routines", label: "Simplify dashboards and routines" },
+          { id: "privacy", label: "Improve privacy" },
+          { id: "performance", label: "Find performance problems" },
+        ],
+        options: {
+          history_days: 30,
+          include_exact_location: false,
+          schedule: "manual",
+          schedule_time: "03:00:00",
+          schedule_weekday: 0,
+          notify_new_suggestions: true,
+        },
+        counts: { new: 2, saved: 1, dismissed: 0 },
+        scan_runs: [
+          {
+            id: "scan-one",
+            created_at: new Date(Date.now() - 3600000).toISOString(),
+            completed_at: new Date(Date.now() - 3540000).toISOString(),
+            recommendation_count: 2,
+            privacy_receipt_id: "receipt-one",
+            usage: { input_tokens: 1800, output_tokens: 620 },
+          },
+        ],
+        threads: [
+          {
+            id: "main",
+            title: "Hall lighting ideas",
+            message_count: 2,
+            updated_at: new Date(Date.now() - 2400000).toISOString(),
+          },
+        ],
+        preferences: {
+          goals: ["automation_discovery", "energy_savings"],
+          ignored_categories: [],
+          ignored_entities: [],
+          notes: [],
+          quiet_hours: null,
+          advisor_mode: "balanced",
+          scan_depth: "standard",
+          automation_complexity: "normal",
+          fix_existing_first: true,
+          avoid_new_hardware: true,
+        },
+        suggestions: [
+          {
+            id: "one",
+            title: "Light the hall when the front door opens",
+            summary:
+              "The hall light regularly follows the front-door sensor after sunset.",
+            rationale:
+              "The two entities changed within 45 seconds on six evenings during the selected history window.",
+            kind: "automation",
+            status: "new",
+            occurrences: 4,
+            confidence: 0.88,
+            impact: "medium",
+            created_at: new Date(Date.now() - 3600000).toISOString(),
+            evidence: [
+              {
+                source_type: "history",
+                source_id:
+                  "binary_sensor.front_door_with_an_intentionally_long_release_test_identifier",
+                observation: "Six evening openings preceded the hall light.",
+                period: "Last 14 days",
+              },
+            ],
+            automation: {
+              explanation:
+                "When the front door opens after sunset, this turns on the hall light. It only reacts to the door changing to open and leaves the light unchanged at other times.",
+              yaml:
+                "alias: Hall light after door opens\ntriggers:\n  - trigger: state\n    entity_id: binary_sensor.front_door\n    to: 'on'\nconditions:\n  - condition: sun\n    after: sunset\nactions:\n  - action: light.turn_on\n    target:\n      entity_id: light.hall\nmode: single\n",
+              validation: { valid: true, errors: {} },
+            },
+          },
+          {
+            id: "two",
+            title: "Assign nine entities to areas",
+            summary:
+              "Several routine-capable entities have no area, making setup-aware suggestions less precise.",
+            rationale:
+              "The entity registry reports nine enabled entities without an entity or device area.",
+            kind: "hygiene",
+            status: "new",
+            confidence: 0.99,
+            impact: "low",
+            created_at: new Date(Date.now() - 7200000).toISOString(),
+            evidence: [
+              {
+                source_type: "registry",
+                source_id: "entity_registry",
+                observation: "Nine enabled entities are unassigned.",
+              },
+            ],
+          },
+          {
+            id: "three",
+            title: "Review unavailable patio sensor",
+            summary: "The patio temperature sensor has been unavailable.",
+            rationale: "Its current state is unavailable.",
+            kind: "hygiene",
+            status: "saved",
+            confidence: 0.95,
+            impact: "low",
+            created_at: new Date(Date.now() - 86400000).toISOString(),
+            evidence: [
+              {
+                source_type: "entity",
+                source_id: "sensor.patio_temperature",
+                observation: "Current state is unavailable.",
+              },
+            ],
+          },
+        ],
+      };
+
+      const activity = {
+        scan_runs: overview.scan_runs,
+        receipts: [
+          {
+            id: "receipt-one",
+            created_at: overview.scan_runs[0].created_at,
+            provider: "openai",
+            model: "gpt-5.6",
+            purpose: "scan",
+            categories: ["home_summary", "history", "preferences"],
+            redaction_count: 3,
+            usage: { input_tokens: 1800, output_tokens: 620 },
+          },
+        ],
+      };
+
+      const panel = document.querySelector("haos-ai-panel");
+      panel.hass = {
+        states: {
+          "light.kitchen": { entity_id: "light.kitchen", state: "on", attributes: { friendly_name: "Kitchen lights" } },
+          "sensor.hallway_temperature": { entity_id: "sensor.hallway_temperature", state: "21.4", attributes: { friendly_name: "Hallway temperature" } },
+          "binary_sensor.front_door": { entity_id: "binary_sensor.front_door", state: "off", attributes: { friendly_name: "Front door" } },
+        },
+        connection: {
+          async sendMessagePromise(message) {
+            if (message.type === "haos_ai/overview") return structuredClone(overview);
+            if (message.type === "haos_ai/chat/threads") return structuredClone(overview.threads);
+            if (message.type === "haos_ai/chat/thread") return [
+              { id: "u1", role: "user", content: "Could the hall light be automated?", created_at: overview.scan_runs[0].created_at },
+              { id: "a1", role: "assistant", content: "Yes. The front-door history supports a sunset-only trigger, and the proposed draft remains read only until you copy it.", created_at: overview.scan_runs[0].created_at },
+            ];
+            if (message.type === "haos_ai/activity") return structuredClone(activity);
+            if (message.type === "haos_ai/privacy_receipt") return {
+              ...structuredClone(activity.receipts[0]),
+              redactions: ["latitude", "longitude", "api_key"],
+              payload_preview: { baseline: { home_summary: { areas: 7 }, preferences: overview.preferences }, requested_context: [{ tool: "get_history_summary", arguments: { entity_id: "binary_sensor.front_door", days: 14 } }] },
+            };
+            if (message.type === "haos_ai/automation/validate") return {
+              validation: { valid: true, errors: {} },
+              yaml: "alias: Validated hall light\ntriggers: []\nconditions: []\nactions: []\nmode: single\n",
+            };
+            if (message.type === "haos_ai/context_preview") {
+              return {
+                provider: "openai",
+                model: "gpt-5.6",
+                purpose: "scan",
+                payload: {
+                  home_summary: {},
+                  local_candidates: {},
+                  integrations: {},
+                  apps: {},
+                },
+                redactions: ["latitude", "longitude", "api_key"],
+              };
+            }
+            if (message.type === "haos_ai/suggestion/update") return { updated: true };
+            if (message.type === "haos_ai/preferences/update") return message.preferences;
+            if (message.type === "haos_ai/options/update") return { options: message.options, reloading: true };
+            if (message.type === "haos_ai/config/update") return { ...message.connection, options: message.options, reloading: true };
+            return {};
+          },
+        },
+      };
+    </script>
+  </body>
+</html>
