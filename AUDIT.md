@@ -29,7 +29,7 @@ workspace.
 | F-005 | Medium | Provider HTTP error bodies could be returned to the administrator UI. | Fixed: errors expose status only. |
 | F-006 | Medium | Runtime QA did not exercise registry-change rejection or prove context reads leave Home Assistant unchanged. | Fixed with destructive-change and before/after state smoke tests. |
 | F-007 | Medium | Release dependencies used moving GitHub Action references and had no automated update configuration. | Fixed by commit pinning and Dependabot configuration. Upstream container images used by HACS/Hassfest remain vendor-managed. |
-| F-008 | External gate | The current commit has not run the HACS GitHub Action. Local execution requires a GitHub token. | Open: require a green HACS job after push. |
+| F-008 | Resolved external gate | The candidate needed to pass the hosted HACS GitHub Action. | Passed for candidate commit `3b6bb8b` in GitHub Actions run `30757833075`. |
 | F-009 | Resolved external gate | The GitHub `release` environment needed a required reviewer and tag-only deployment policy. | Fixed: `Bronxk` is required to approve deployments, and only tags matching `v*` may deploy. |
 | F-010 | External gate | Live provider acceptance requires real, separately billed provider keys. | Open: configure OpenAI, Anthropic, DeepSeek, and one generic OpenAI-compatible endpoint on disposable Home Assistant. Rotate the test keys afterward. |
 | F-011 | External gate | HACS installation and update notification behavior have not been exercised from a signed-out/public client against this unpublished candidate. | Open: test after the candidate commit is available remotely. |
@@ -45,6 +45,8 @@ workspace.
 - Production dependencies: zero reported npm vulnerabilities.
 - Gitleaks 8.30.1: no leaks after quarantine.
 - Actionlint 1.7.12: both workflows pass.
+- GitHub Actions run 30757833075: all six jobs pass, including HACS, Hassfest,
+  secret scanning, application tests, and both Home Assistant runtime targets.
 - Hassfest: 1 integration, 0 invalid integrations.
 - Home Assistant 2026.7.4: automation, context, WebSocket, conversation,
   destructive-change, and clean-install smoke tests pass.

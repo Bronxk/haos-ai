@@ -18,6 +18,8 @@
 - [x] Run `npm ci`, `npm run check`, `npm test`, and `npm run build`.
 - [x] Confirm the committed production panel matches a clean build.
 - [x] Run Hassfest and the Home Assistant runtime smoke tests.
+- [x] Confirm the pushed candidate passes the complete hosted `Validate`
+  workflow, including HACS.
 - [x] Run `npm audit --omit=dev`.
 - [x] Confirm the secret scan and GitHub Actions workflow lint jobs pass.
 - [x] Confirm the GitHub `release` environment requires a maintainer approval
