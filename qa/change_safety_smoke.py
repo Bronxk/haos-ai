@@ -63,6 +63,12 @@ class FakeStore:
         """Record that the successful operation was persisted."""
         self.save_count += 1
 
+    def record_applied_change(self, change: Any) -> dict[str, Any]:
+        """Record one approved change for the outcome ledger."""
+        serialized = change.to_dict()
+        self.data.setdefault("applied_changes", []).append(serialized)
+        return serialized
+
 
 class FakeConnection:
     """Capture one decorated WebSocket command result."""
@@ -168,7 +174,15 @@ async def main() -> None:
     hass.states.async_remove(entity_id)
     connection.reset()
     await invoke(hass, connection, confirm=True)
-    assert connection.result == (1, {"applied": True, "operation": "remove_entity"})
+    # The response also carries the ledger entry recorded for this approval.
+    # Its id and timestamp are generated, so assert the stable fields.
+    assert connection.result is not None
+    result_id, payload = connection.result
+    assert result_id == 1
+    assert payload["applied"] is True
+    assert payload["operation"] == "remove_entity"
+    assert payload["applied_change"]["kind"] == "remove_entity"
+    assert payload["applied_change"]["target_id"] == entity_id
     assert registry.async_get(entity_id) is None
     assert store.suggestion["status"] == "saved"
     assert store.save_count == 1

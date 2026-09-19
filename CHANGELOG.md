@@ -1,5 +1,72 @@
 # Changelog
 
+## Unreleased
+
+- Fixed the panel's icon buttons. Home Assistant's `ha-icon-button` has no
+  `icon` property — it renders a slotted `<ha-icon>` or a `path` — so every
+  `icon="mdi:..."` button rendered blank. The new-conversation control in chat
+  was invisible, along with six others (dismiss error, clear inbox, open in
+  Home Assistant, rename conversation, delete conversation, refresh activity).
+  All seven now slot an `<ha-icon>`, and a source test rejects the removed
+  attribute.
+- Fixed `get_automations` reporting an empty list. The tool marked `query` as
+  required while describing it as optional and matched it as a literal
+  substring, so a model asking for everything with `*`, `all`, an omitted
+  argument, or JSON `null` was told the home had no automations. `query` is now
+  optional, and the common "list everything" tokens mean "no filter".
+- Modernized device registry access that Home Assistant deprecated in 2026.8:
+  `registry.devices` is no longer a mapping and `DeviceEntry.config_entries` is
+  a compatibility shim. Both are now read version-adaptively, so Home Assistant
+  2026.7 through 2026.9 work without deprecation reports.
+- Repaired three runtime smoke tests that the unreleased features had broken.
+  The context test tripped the deprecated device mapping, the WebSocket test
+  passed no advisor and a store without an applied-change ledger, and the
+  change-safety test asserted the pre-ledger response shape. `get_automations`
+  now has its own smoke test, and it runs in the CI runtime matrix.
+- The panel's `_panel_custom` config passed `trust_external_script`, a key the
+  frontend ignores; it now passes `trust_external`, matching
+  `panel_custom.async_register_panel`.
+- Dropped the obsolete `render_readme` key from `hacs.json`.
+- **Security:** the Assist conversation agent now requires an administrator.
+  It previously answered any caller, which let a non-admin — or any voice
+  satellite — read the whole sanitized setup through the advisor's read-only
+  context tools: inventory, entity detail, integration health, and raw
+  automation config. Unattributed requests, which cannot be shown to come from
+  an administrator, are refused as well.
+- **Security:** Assist threads are namespaced per user instead of using the
+  caller-supplied conversation id directly. A caller could previously pass a
+  known panel thread id and have the model replay that private conversation
+  back, or write into it.
+- Assist now answers with the budget message instead of raising when the
+  monthly token budget is spent.
+- Moved automation creation and updates behind the backend approval gate. The
+  panel no longer writes to Home Assistant's automation config API directly, so
+  the default-off `create_automations` and `update_automations` capabilities are
+  now enforced on the server, revalidated at approval time, and checked against
+  a live stale-target lookup.
+- Added a side-by-side YAML diff to the update-approval dialog so a replacement
+  shows exactly which lines change before it is applied.
+- Added a monthly token budget. Scans and chat fail closed once the cap is
+  reached, warn at 80%, and report usage in Activity and settings.
+- Added an applied-change ledger. Approved changes are re-checked after three
+  days and recorded as kept, turned off, or reverted, and those outcomes are
+  fed back into later scans.
+- Added an optional second provider profile so scans can run on a cheaper model
+  while chat stays on a stronger one.
+- Added a `get_blueprints` context tool and blueprint-aware validation so the
+  advisor can propose a blueprint instance instead of hand-written YAML.
+- Added deterministic domain, area, and label exclusions. Like ignored
+  entities, these are withheld locally before a request is built rather than
+  described to the model as a preference.
+- Chat threads are now pruned. Threads past the 90-day retention window are
+  removed and the total thread count is capped, so Assist conversations can no
+  longer grow local storage without bound.
+- Panel strings now resolve through Home Assistant's translation catalog, with
+  the bundled English table as the fallback.
+- Unexpected WebSocket errors no longer echo raw exception text to the browser.
+- Marked the integration `single_config_entry` so Home Assistant hides the add
+  button for a second entry.
+
 ## 1.0.3
 
 - Fixed provider selection so DeepSeek connections no longer render as OpenAI

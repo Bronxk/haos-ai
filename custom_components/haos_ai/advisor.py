@@ -7,12 +7,18 @@ import logging
 import re
 import uuid
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from homeassistant.components.automation import (
+    DATA_COMPONENT as AUTOMATION_COMPONENT,
+)
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from .automation_validation import async_validate_automation, export_yaml
-from .const import GOAL_PRESETS
+from .const import BUDGET_WARNING_RATIO, GOAL_PRESETS, OUTCOME_CHECK_DAYS
 from .context import ContextEngine
 from .models import (
     AutomationProposal,
@@ -30,6 +36,10 @@ from .providers.base import ProviderClient, ProviderResponseError
 from .storage import AdvisorStore
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class BudgetExceededError(RuntimeError):
+    """The configured monthly token budget is already spent."""
 ProgressCallback = Callable[[dict[str, Any]], Awaitable[None]]
 JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.I | re.S)
 SCAN_PROVIDER_TIMEOUT = 300
@@ -56,6 +66,13 @@ Rules:
   preference, hardware preference, and quiet hours as explicit user choices.
 - Treat dismissal feedback as a durable preference signal. Do not repeat ideas
   rejected as irrelevant, intrusive, incorrect, or already implemented.
+- Treat applied-change outcomes as ground truth. Do not re-propose something
+  already applied and kept, and prefer a different approach where an applied
+  change was later disabled or reverted.
+- Prefer an existing blueprint over hand-written YAML when one fits. Use its
+  exact path and input names; never invent a blueprint path.
+- Some entities, domains, areas, and labels are withheld by the user before
+  the request is built. Never ask for them and never guess what is missing.
 - Never request secrets, exact GPS, camera media, alarm codes, or lock codes.
 """
 
@@ -103,8 +120,11 @@ Composition requirements:
 - At least half of the returned recommendations should be automations whenever
   the available evidence supports any safe automation recommendations.
 - Spend context lookups primarily on automation discovery. Use only the offered
-  tools, especially search_entities, get_history_summary, get_entity_detail, and
-  get_automations. Do not invent other tool names.
+  tools, especially search_entities, get_history_summary, get_entity_detail,
+  get_blueprints, and get_automations. Do not invent other tool names.
+- When a listed blueprint matches the idea, return the automation as
+  {"use_blueprint": {"path": "<exact path>", "input": {...}}} plus alias and
+  description, instead of triggers/conditions/actions.
 - Do not propose an automation from an unavailable, disabled, or unassigned
   entity alone. It needs concrete entity or history evidence and valid YAML.
 - If there is evidence for fewer automations, return fewer total recommendations
@@ -155,36 +175,72 @@ class Advisor:
         store: AdvisorStore,
         context: ContextEngine,
         provider_name: str,
+        scan_provider: ProviderClient | None = None,
+        scan_provider_name: str | None = None,
     ) -> None:
         self.hass = hass
         self.provider = provider
         self.store = store
         self.context = context
         self.provider_name = provider_name
+        # An optional second profile lets long tool-heavy scans run on a
+        # cheaper model than interactive chat.
+        self.scan_provider = scan_provider or provider
+        self.scan_provider_name = scan_provider_name or provider_name
+
+    @property
+    def uses_scan_profile(self) -> bool:
+        """Return whether scans run on a separate provider profile."""
+        return self.scan_provider is not self.provider
+
+    def budget_status(self) -> dict[str, Any]:
+        """Return this month's token usage against the configured budget."""
+        usage = self.store.monthly_usage()
+        budget = int(
+            self.store.data["preferences"].get("monthly_token_budget", 0) or 0
+        )
+        used = usage["total_tokens"]
+        ratio = (used / budget) if budget else 0.0
+        return {
+            **usage,
+            "budget": budget,
+            "remaining": max(0, budget - used) if budget else None,
+            "ratio": round(ratio, 4),
+            "exceeded": bool(budget and used >= budget),
+            "warning": bool(budget and ratio >= BUDGET_WARNING_RATIO),
+        }
+
+    def _enforce_budget(self) -> dict[str, Any]:
+        """Fail closed before spending tokens beyond the configured cap."""
+        status = self.budget_status()
+        if status["exceeded"]:
+            raise BudgetExceededError(
+                f"This month's token budget of {status['budget']:,} is spent "
+                f"({status['total_tokens']:,} used). Raise or clear the budget "
+                "in HAOS AI settings to continue."
+            )
+        return status
 
     async def async_context_preview(self) -> dict[str, Any]:
         """Return an outbound preflight preview without contacting a provider."""
         preview = await self._async_scan_baseline()
         return {
             **preview,
-            "provider": self.provider_name,
-            "model": self.provider.model,
+            "provider": self.scan_provider_name,
+            "model": self.scan_provider.model,
             "purpose": "scan",
+            "budget": self.budget_status(),
         }
 
     async def _async_scan_baseline(self) -> dict[str, Any]:
         """Build the exact baseline, including durable advisor preferences."""
+        preferences_data = self.store.data["preferences"]
+        # Resolve every ignore scope first so the baseline is built without
+        # the withheld entities rather than scrubbed after the fact.
+        excluded = self.context.set_exclusions(preferences_data)
         preview = await self.context.async_baseline_preview()
-        ignored_entities = {
-            str(entity_id)
-            for entity_id in self.store.data["preferences"].get(
-                "ignored_entities", []
-            )
-        }
-        preview["payload"] = exclude_ignored_entities(
-            preview["payload"], ignored_entities
-        )
-        raw_preferences = dict(self.store.data["preferences"])
+        preview["payload"] = exclude_ignored_entities(preview["payload"], excluded)
+        raw_preferences = dict(preferences_data)
         raw_preferences["goals"] = [
             GOAL_PRESETS.get(str(goal), str(goal))
             for goal in raw_preferences.get("goals", [])
@@ -194,10 +250,75 @@ class Advisor:
             include_exact_location=self.context.include_exact_location,
         )
         preview["payload"]["preferences"] = preferences
+        outcomes = self._applied_outcome_summary()
+        if outcomes:
+            preview["payload"]["applied_outcomes"] = outcomes
         preview["redactions"] = sorted(
             set(preview["redactions"]) | set(redactions)
         )
         return preview
+
+    def _applied_outcome_summary(self) -> list[dict[str, Any]]:
+        """Summarize what previously approved changes actually did."""
+        return [
+            {
+                "kind": str(item.get("kind", "")),
+                "target_id": str(item.get("target_id", "")),
+                "title": str(item.get("suggestion_title", ""))[:120],
+                "applied_at": str(item.get("applied_at", "")),
+                "outcome": str(item.get("outcome", "pending")),
+                "detail": str(item.get("outcome_detail", ""))[:240],
+            }
+            for item in self.store.list_applied_changes()[:30]
+        ]
+
+    def refresh_applied_outcomes(self) -> int:
+        """Observe what happened to applied changes that have had time to settle.
+
+        Suggestions are only useful if the advisor learns which of its accepted
+        proposals survived contact with the real installation.
+        """
+        cutoff = datetime.now(UTC) - timedelta(days=OUTCOME_CHECK_DAYS)
+        component = self.hass.data.get(AUTOMATION_COMPONENT)
+        entity_registry = er.async_get(self.hass)
+        device_registry = dr.async_get(self.hass)
+        updated = 0
+        for item in self.store.list_applied_changes():
+            if item.get("outcome") not in (None, "", "pending"):
+                continue
+            try:
+                if datetime.fromisoformat(str(item["applied_at"])) > cutoff:
+                    continue
+            except (KeyError, TypeError, ValueError):
+                continue
+            kind = str(item.get("kind", ""))
+            target = str(item.get("target_id", ""))
+            outcome, detail = "unknown", ""
+            if kind in {"create_automation", "update_automation"}:
+                match = None
+                for automation in getattr(component, "entities", ()) or ():
+                    if str((automation.raw_config or {}).get("id", "")) == target:
+                        match = automation
+                        break
+                if match is None:
+                    outcome, detail = "reverted", "Automation no longer exists"
+                elif not match.is_on:
+                    outcome, detail = "disabled", "Automation is turned off"
+                else:
+                    outcome, detail = "kept", "Automation is present and enabled"
+            elif kind == "remove_entity":
+                if entity_registry.async_get(target) is None:
+                    outcome, detail = "kept", "Entity is still absent"
+                else:
+                    outcome, detail = "reverted", "Entity was registered again"
+            elif kind == "remove_device":
+                if device_registry.async_get(target) is None:
+                    outcome, detail = "kept", "Device is still absent"
+                else:
+                    outcome, detail = "reverted", "Device was registered again"
+            if self.store.set_applied_outcome(str(item["id"]), outcome, detail):
+                updated += 1
+        return updated
 
     async def async_scan(
         self,
@@ -208,18 +329,22 @@ class Advisor:
         """Run a manual or scheduled evidence-backed scan."""
         scan_id = uuid.uuid4().hex
         await progress({"stage": "context", "scan_id": scan_id, "progress": 0.1})
+        if self.refresh_applied_outcomes():
+            await self.store.async_save()
         baseline = await self._async_scan_baseline()
         if not confirm_context:
             return {
                 "scan_id": scan_id,
                 "requires_confirmation": True,
                 "context_preview": baseline,
+                "budget": self.budget_status(),
             }
+        self._enforce_budget()
 
         self.context.outbound_trace.clear()
         receipt = PrivacyReceipt(
-            provider=self.provider_name,
-            model=self.provider.model,
+            provider=self.scan_provider_name,
+            model=self.scan_provider.model,
             purpose="scan",
             categories=context_categories(baseline["payload"]),
             redactions=list(baseline["redactions"]),
@@ -263,7 +388,7 @@ class Advisor:
                 name, arguments, self.store.data["preferences"]
             )
 
-        response = await self.provider.run_tool_loop(
+        response = await self.scan_provider.run_tool_loop(
             messages,
             self.context.tool_specs(),
             execute,
@@ -276,7 +401,7 @@ class Advisor:
         try:
             payload = _extract_json(response.content)
         except ProviderResponseError:
-            repair = await self.provider.complete(
+            repair = await self.scan_provider.complete(
                 [
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {
@@ -331,6 +456,7 @@ class Advisor:
             "recommendations": [item.to_dict() for item in recommendations],
             "usage": response.usage,
             "privacy_receipt_id": receipt.id,
+            "budget": self.budget_status(),
         }
 
     async def _async_parse_recommendations(
@@ -470,6 +596,8 @@ class Advisor:
         progress: ProgressCallback,
     ) -> dict[str, Any]:
         """Run one setup-aware chat turn."""
+        self._enforce_budget()
+        self.context.set_exclusions(self.store.data["preferences"])
         user_message = ChatMessage(role="user", content=text[:12000])
         self.store.add_message(thread_id, user_message)
         await self.store.async_save()
@@ -527,4 +655,5 @@ class Advisor:
             "usage": response.usage,
             "context_trace": self.context.outbound_trace,
             "privacy_receipt_id": receipt.id,
+            "budget": self.budget_status(),
         }

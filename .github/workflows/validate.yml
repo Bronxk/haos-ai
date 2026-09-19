@@ -78,6 +78,8 @@ jobs:
           docker run --rm -v "$PWD:/workspace:ro" homeassistant/home-assistant:${{ matrix.home-assistant }} \
             python /workspace/qa/context_smoke.py
           docker run --rm -v "$PWD:/workspace:ro" homeassistant/home-assistant:${{ matrix.home-assistant }} \
+            python /workspace/qa/get_automations_smoke.py
+          docker run --rm -v "$PWD:/workspace:ro" homeassistant/home-assistant:${{ matrix.home-assistant }} \
             python /workspace/qa/websocket_smoke.py
           docker run --rm -v "$PWD:/workspace:ro" homeassistant/home-assistant:${{ matrix.home-assistant }} \
             python /workspace/qa/conversation_smoke.py

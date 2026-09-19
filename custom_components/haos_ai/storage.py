@@ -14,19 +14,24 @@ except ImportError:  # pragma: no cover - allows pure unit tests outside HA
 
 from .const import (
     ADVISOR_MODES,
+    APPLIED_OUTCOMES,
     AUTOMATION_COMPLEXITIES,
     DEFAULT_ADVISOR_MODE,
     DEFAULT_AUTOMATION_COMPLEXITY,
     DEFAULT_CHANGE_PERMISSIONS,
+    DEFAULT_MONTHLY_TOKEN_BUDGET,
     DEFAULT_SCAN_DEPTH,
+    MAX_APPLIED_CHANGES,
     MAX_CHAT_MESSAGES,
+    MAX_CHAT_THREADS,
+    MAX_MONTHLY_TOKEN_BUDGET,
     MAX_SUGGESTIONS,
     RETENTION_DAYS,
     SCAN_DEPTHS,
     STORAGE_KEY,
     STORAGE_VERSION,
 )
-from .models import ChatMessage, PrivacyReceipt, Recommendation
+from .models import AppliedChange, ChatMessage, PrivacyReceipt, Recommendation
 
 
 def _suggestion_fingerprint(item: dict[str, Any]) -> tuple[str, str]:
@@ -47,18 +52,36 @@ def default_data() -> dict[str, Any]:
             "goals": [],
             "ignored_categories": [],
             "ignored_entities": [],
+            "ignored_domains": [],
+            "ignored_areas": [],
+            "ignored_labels": [],
             "notes": [],
             "advisor_mode": DEFAULT_ADVISOR_MODE,
             "scan_depth": DEFAULT_SCAN_DEPTH,
             "automation_complexity": DEFAULT_AUTOMATION_COMPLEXITY,
             "fix_existing_first": True,
             "avoid_new_hardware": True,
+            "monthly_token_budget": DEFAULT_MONTHLY_TOKEN_BUDGET,
             "dismissal_feedback": [],
             "change_permissions": dict(DEFAULT_CHANGE_PERMISSIONS),
         },
         "privacy_receipts": [],
         "scan_runs": [],
+        "applied_changes": [],
     }
+
+
+def _bounded_id_list(values: Any, *, limit: int, length: int) -> list[str]:
+    """Return a deduplicated, trimmed list of identifier-like strings."""
+    if not isinstance(values, list | tuple):
+        return []
+    return list(
+        dict.fromkeys(
+            str(value).strip()[:length]
+            for value in values[:limit]
+            if str(value).strip()
+        )
+    )
 
 
 def normalize_preferences(
@@ -81,18 +104,28 @@ def normalize_preferences(
     raw_permissions = incoming.get("change_permissions", {})
     if not isinstance(raw_permissions, dict):
         raw_permissions = {}
+    try:
+        budget = int(incoming.get("monthly_token_budget", 0) or 0)
+    except (TypeError, ValueError):
+        budget = DEFAULT_MONTHLY_TOKEN_BUDGET
+    budget = max(0, min(budget, MAX_MONTHLY_TOKEN_BUDGET))
     return {
         "quiet_hours": quiet_hours,
         "goals": [str(value)[:200] for value in incoming.get("goals", [])[:20]],
         "ignored_categories": [
             str(value)[:80] for value in incoming.get("ignored_categories", [])[:30]
         ],
-        "ignored_entities": list(
-            dict.fromkeys(
-                str(value).strip()[:120]
-                for value in incoming.get("ignored_entities", [])[:200]
-                if str(value).strip()
-            )
+        "ignored_entities": _bounded_id_list(
+            incoming.get("ignored_entities", []), limit=200, length=120
+        ),
+        "ignored_domains": _bounded_id_list(
+            incoming.get("ignored_domains", []), limit=50, length=60
+        ),
+        "ignored_areas": _bounded_id_list(
+            incoming.get("ignored_areas", []), limit=50, length=80
+        ),
+        "ignored_labels": _bounded_id_list(
+            incoming.get("ignored_labels", []), limit=50, length=80
         ),
         "notes": [str(value)[:500] for value in incoming.get("notes", [])[:30]],
         "advisor_mode": (
@@ -106,6 +139,7 @@ def normalize_preferences(
         ),
         "fix_existing_first": bool(incoming.get("fix_existing_first", True)),
         "avoid_new_hardware": bool(incoming.get("avoid_new_hardware", True)),
+        "monthly_token_budget": budget,
         "change_permissions": {
             key: bool(raw_permissions.get(key, default))
             for key, default in DEFAULT_CHANGE_PERMISSIONS.items()
@@ -138,6 +172,11 @@ class AdvisorStore:
             self.data["chat_thread_meta"] = loaded.get(
                 "chat_thread_meta", {}
             )
+            self.data["applied_changes"] = [
+                item
+                for item in loaded.get("applied_changes", [])
+                if isinstance(item, dict)
+            ]
         self._prune()
 
     async def async_save(self) -> None:
@@ -171,12 +210,61 @@ class AdvisorStore:
             if isinstance(item, dict) and recent(item)
         ]
         self.data["scan_runs"] = scan_runs[-MAX_SUGGESTIONS:]
-        for thread_id, messages in list(self.data.get("chat_threads", {}).items()):
-            if not isinstance(messages, list):
-                self.data["chat_threads"].pop(thread_id, None)
-                self.data["chat_thread_meta"].pop(thread_id, None)
+        applied = [
+            item
+            for item in self.data.get("applied_changes", [])
+            if isinstance(item, dict)
+            and recent({"created_at": item.get("applied_at")})
+        ]
+        self.data["applied_changes"] = applied[-MAX_APPLIED_CHANGES:]
+        self._prune_threads(cutoff)
+
+    def _prune_threads(self, cutoff: datetime) -> None:
+        """Drop malformed, expired, and least recently used chat threads.
+
+        Assist creates one thread per conversation id, so an unbounded thread
+        map would grow forever and be rewritten on every save.
+        """
+        threads: dict[str, Any] = self.data.setdefault("chat_threads", {})
+        meta: dict[str, Any] = self.data.setdefault("chat_thread_meta", {})
+
+        def last_activity(thread_id: str, messages: list[Any]) -> str:
+            entry = meta.get(thread_id)
+            if isinstance(entry, dict) and entry.get("updated_at"):
+                return str(entry["updated_at"])
+            for message in reversed(messages):
+                if isinstance(message, dict) and message.get("created_at"):
+                    return str(message["created_at"])
+            return ""
+
+        surviving: list[tuple[str, str]] = []
+        for thread_id, messages in list(threads.items()):
+            if not isinstance(messages, list) or not messages:
+                threads.pop(thread_id, None)
+                meta.pop(thread_id, None)
                 continue
-            self.data["chat_threads"][thread_id] = messages[-MAX_CHAT_MESSAGES:]
+            threads[thread_id] = messages[-MAX_CHAT_MESSAGES:]
+            stamp = last_activity(thread_id, threads[thread_id])
+            try:
+                expired = datetime.fromisoformat(stamp) < cutoff
+            except (TypeError, ValueError):
+                # An unparsable timestamp must not silently delete a thread.
+                expired = False
+            if expired:
+                threads.pop(thread_id, None)
+                meta.pop(thread_id, None)
+                continue
+            surviving.append((thread_id, stamp))
+
+        if len(surviving) > MAX_CHAT_THREADS:
+            surviving.sort(key=lambda item: item[1])
+            for thread_id, _ in surviving[: len(surviving) - MAX_CHAT_THREADS]:
+                threads.pop(thread_id, None)
+                meta.pop(thread_id, None)
+
+        for thread_id in list(meta):
+            if thread_id not in threads:
+                meta.pop(thread_id, None)
 
     def list_suggestions(self, status: str | None = None) -> list[dict[str, Any]]:
         items = sorted(
@@ -355,6 +443,65 @@ class AdvisorStore:
 
     def add_receipt(self, receipt: PrivacyReceipt) -> None:
         self.data["privacy_receipts"].append(receipt.to_dict())
+
+    def monthly_usage(self, now: datetime | None = None) -> dict[str, int]:
+        """Aggregate provider token usage for the current UTC month."""
+        moment = now or datetime.now(UTC)
+        prefix = f"{moment.year:04d}-{moment.month:02d}"
+        input_tokens = 0
+        output_tokens = 0
+        requests = 0
+        for item in self.data.get("privacy_receipts", []):
+            if not isinstance(item, dict):
+                continue
+            if not str(item.get("created_at", "")).startswith(prefix):
+                continue
+            usage = item.get("usage") or {}
+            if not isinstance(usage, dict):
+                continue
+            requests += 1
+            try:
+                input_tokens += int(usage.get("input_tokens", 0) or 0)
+                output_tokens += int(usage.get("output_tokens", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+        return {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": input_tokens + output_tokens,
+            "requests": requests,
+        }
+
+    def record_applied_change(self, change: AppliedChange) -> dict[str, Any]:
+        """Persist one approved change so its outcome can be re-checked."""
+        serialized = change.to_dict()
+        self.data.setdefault("applied_changes", []).append(serialized)
+        self.data["applied_changes"] = self.data["applied_changes"][
+            -MAX_APPLIED_CHANGES:
+        ]
+        return serialized
+
+    def list_applied_changes(self) -> list[dict[str, Any]]:
+        """Return applied changes newest first."""
+        return [
+            item
+            for item in reversed(self.data.get("applied_changes", []))
+            if isinstance(item, dict)
+        ]
+
+    def set_applied_outcome(
+        self, change_id: str, outcome: str, detail: str = ""
+    ) -> dict[str, Any] | None:
+        """Record the observed result of one previously applied change."""
+        if outcome not in APPLIED_OUTCOMES:
+            return None
+        for item in self.data.get("applied_changes", []):
+            if isinstance(item, dict) and item.get("id") == change_id:
+                item["outcome"] = outcome
+                item["outcome_detail"] = detail[:240]
+                item["checked_at"] = datetime.now(UTC).isoformat()
+                return item
+        return None
 
     def get_receipt(self, receipt_id: str) -> dict[str, Any] | None:
         return next(

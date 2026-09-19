@@ -23,7 +23,20 @@ interface HomeAssistant {
   ): Promise<T>;
   themes?: { darkMode?: boolean };
   states?: Record<string, HassState>;
-  localize?(key: string): string;
+  areas?: Record<string, HassArea>;
+  entities?: Record<string, HassRegistryEntry>;
+  localize?(key: string, ...args: unknown[]): string;
+}
+
+interface HassArea {
+  area_id: string;
+  name: string;
+}
+
+interface HassRegistryEntry {
+  entity_id: string;
+  area_id?: string | null;
+  labels?: string[];
 }
 
 interface HassState {
@@ -118,9 +131,48 @@ interface PrivacyReceipt extends ReceiptSummary {
   payload_preview: Record<string, unknown>;
 }
 
+interface BudgetStatus {
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  requests: number;
+  budget: number;
+  remaining: number | null;
+  ratio: number;
+  exceeded: boolean;
+  warning: boolean;
+}
+
+interface AppliedChange {
+  id: string;
+  kind:
+    | "create_automation"
+    | "update_automation"
+    | "remove_entity"
+    | "remove_device";
+  target_id: string;
+  label: string;
+  suggestion_id?: string | null;
+  suggestion_title?: string;
+  applied_at: string;
+  outcome: "pending" | "kept" | "disabled" | "reverted" | "unknown";
+  outcome_detail?: string;
+  checked_at?: string | null;
+}
+
+interface ScanProfile {
+  enabled: boolean;
+  provider?: string | null;
+  model?: string | null;
+  base_url?: string | null;
+  active?: boolean;
+}
+
 interface Activity {
   scan_runs: ScanRun[];
   receipts: ReceiptSummary[];
+  budget?: BudgetStatus;
+  applied_changes?: AppliedChange[];
 }
 
 interface Overview {
@@ -128,6 +180,9 @@ interface Overview {
   provider: string;
   model: string;
   base_url: string;
+  scan_profile?: ScanProfile;
+  budget?: BudgetStatus;
+  applied_changes?: AppliedChange[];
   provider_options: ProviderOption[];
   goal_presets: GoalPreset[];
   options: {
@@ -146,6 +201,10 @@ interface Overview {
     goals: string[];
     ignored_categories: string[];
     ignored_entities: string[];
+    ignored_domains?: string[];
+    ignored_areas?: string[];
+    ignored_labels?: string[];
+    monthly_token_budget?: number;
     notes: string[];
     quiet_hours: { start: string; end: string } | null;
     advisor_mode?: "conservative" | "balanced" | "ambitious";
@@ -223,15 +282,155 @@ const FEEDBACK_REASONS = [
   "Maybe later",
 ] as const;
 
-const WEEKDAYS = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
+const WEEKDAY_KEYS = [
+  "weekday.monday",
+  "weekday.tuesday",
+  "weekday.wednesday",
+  "weekday.thursday",
+  "weekday.friday",
+  "weekday.saturday",
+  "weekday.sunday",
 ] as const;
+
+/**
+ * English source strings for the panel.
+ *
+ * `t()` prefers Home Assistant's own translation for the same key, so a
+ * translated Home Assistant instance localizes the panel without a rebuild,
+ * and this table stays the guaranteed fallback.
+ */
+const PANEL_STRINGS: Record<string, string> = {
+  "weekday.monday": "Monday",
+  "weekday.tuesday": "Tuesday",
+  "weekday.wednesday": "Wednesday",
+  "weekday.thursday": "Thursday",
+  "weekday.friday": "Friday",
+  "weekday.saturday": "Saturday",
+  "weekday.sunday": "Sunday",
+
+  "budget.title": "Monthly token budget",
+  "budget.description":
+    "Cap what HAOS AI may spend with your provider each calendar month.",
+  "budget.field": "Token budget per month",
+  "budget.unlimited": "0 means no cap",
+  "budget.used": "Used this month",
+  "budget.remaining": "Remaining",
+  "budget.requests": "Provider requests",
+  "budget.no_cap": "No cap set",
+  "budget.warning":
+    "This month's token budget is nearly spent. Scans and chat stop when it runs out.",
+  "budget.exceeded":
+    "This month's token budget is spent. Scans and chat are paused until you raise it.",
+  "budget.save": "Save budget",
+
+  "scan_profile.title": "Separate model for scans",
+  "scan_profile.description":
+    "Scans are long and tool-heavy. Run them on a cheaper model and keep chat on a strong one.",
+  "scan_profile.enable": "Use a separate provider for scans",
+  "scan_profile.enable_help":
+    "When off, scans and chat both use the connection above.",
+  "scan_profile.provider": "Scan provider",
+  "scan_profile.model": "Scan model",
+  "scan_profile.api_key": "Scan API key",
+  "scan_profile.base_url": "Scan API base URL",
+  "scan_profile.active": "Scans run on this profile",
+  "scan_profile.inactive": "Scans use the main connection",
+
+  "ignore.entities": "Ignored entities",
+  "ignore.entities_help":
+    "Search by name or entity ID. You can also paste comma-, space-, or line-separated IDs.",
+  "ignore.domains": "Ignored domains",
+  "ignore.domains_help":
+    "Every entity in these domains is withheld before the request is built.",
+  "ignore.areas": "Ignored areas",
+  "ignore.areas_help":
+    "Entities and devices in these areas are never sent, including their history.",
+  "ignore.labels": "Ignored labels",
+  "ignore.labels_help":
+    "Anything carrying one of these labels is withheld from every request.",
+  "ignore.add": "Add",
+  "ignore.enforced":
+    "These exclusions are applied locally before anything is sent. They are not requests to the model.",
+  "ignore.not_found": "Not currently found",
+  "ignore.stop": "Stop ignoring",
+
+  "applied.title": "Applied changes",
+  "applied.description":
+    "What happened to the changes you approved, checked automatically after a few days.",
+  "applied.empty": "No approved changes yet.",
+  "applied.outcome.pending": "Checking soon",
+  "applied.outcome.kept": "Kept",
+  "applied.outcome.disabled": "Turned off",
+  "applied.outcome.reverted": "Reverted",
+  "applied.outcome.unknown": "Unknown",
+
+  "diff.title": "Changes to this automation",
+  "diff.current": "Currently in Home Assistant",
+  "diff.proposed": "Proposed",
+  "diff.identical": "The draft matches the stored automation exactly.",
+  "diff.unavailable": "The stored automation could not be read for comparison.",
+  "diff.loading": "Loading the stored automation…",
+
+  "action.cancel": "Cancel",
+  "action.save": "Save",
+};
+
+/** Read a panel string, preferring Home Assistant's translation catalog. */
+function panelString(hass: HomeAssistant | undefined, key: string): string {
+  const translated = hass?.localize?.(`component.haos_ai.panel.${key}`);
+  if (translated && translated !== `component.haos_ai.panel.${key}`) {
+    return translated;
+  }
+  return PANEL_STRINGS[key] ?? key;
+}
+
+interface DiffLine {
+  type: "same" | "added" | "removed";
+  text: string;
+}
+
+/**
+ * Line diff over two YAML documents.
+ *
+ * Replacing an automation is destructive, so the approval dialog has to show
+ * exactly which lines change rather than two blobs to eyeball.
+ */
+function diffLines(before: string, after: string): DiffLine[] {
+  const left = before.replace(/\s+$/, "").split("\n");
+  const right = after.replace(/\s+$/, "").split("\n");
+  // Longest common subsequence table; automation YAML is small enough that
+  // the quadratic table is cheaper than a smarter algorithm.
+  const lengths: number[][] = Array.from({ length: left.length + 1 }, () =>
+    new Array<number>(right.length + 1).fill(0),
+  );
+  for (let i = left.length - 1; i >= 0; i--) {
+    for (let j = right.length - 1; j >= 0; j--) {
+      lengths[i][j] =
+        left[i] === right[j]
+          ? lengths[i + 1][j + 1] + 1
+          : Math.max(lengths[i + 1][j], lengths[i][j + 1]);
+    }
+  }
+  const result: DiffLine[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < left.length && j < right.length) {
+    if (left[i] === right[j]) {
+      result.push({ type: "same", text: left[i] });
+      i++;
+      j++;
+    } else if (lengths[i + 1][j] >= lengths[i][j + 1]) {
+      result.push({ type: "removed", text: left[i] });
+      i++;
+    } else {
+      result.push({ type: "added", text: right[j] });
+      j++;
+    }
+  }
+  for (; i < left.length; i++) result.push({ type: "removed", text: left[i] });
+  for (; j < right.length; j++) result.push({ type: "added", text: right[j] });
+  return result;
+}
 
 @customElement("haos-ai-panel")
 export class HaosAiPanel extends LitElement {
@@ -258,6 +457,13 @@ export class HaosAiPanel extends LitElement {
   @state() private ignoredEntities: string[] = [];
   @state() private ignoredEntityQuery = "";
   @state() private ignoredEntityError = "";
+  @state() private ignoredDomains: string[] = [];
+  @state() private ignoredAreas: string[] = [];
+  @state() private ignoredLabels: string[] = [];
+  @state() private ignoredDomainQuery = "";
+  @state() private ignoredAreaQuery = "";
+  @state() private ignoredLabelQuery = "";
+  @state() private monthlyTokenBudget = 0;
   @state() private advisorMode = "balanced";
   @state() private scanDepth = "standard";
   @state() private automationComplexity = "normal";
@@ -292,6 +498,14 @@ export class HaosAiPanel extends LitElement {
   @state() private feedbackNote = "";
   @state() private renameText = "";
   @state() private pendingChange?: PendingChange;
+  @state() private scanProfileEnabled = false;
+  @state() private scanProviderDraft = "";
+  @state() private scanModelDraft = "";
+  @state() private scanBaseUrlDraft = "";
+  @state() private scanApiKeyDraft = "";
+  @state() private diffLines?: DiffLine[];
+  @state() private diffError = "";
+  @state() private diffLoading = false;
 
   private started = false;
   private unsubscribeProgress?: Unsubscribe;
@@ -348,6 +562,11 @@ export class HaosAiPanel extends LitElement {
     return this.hass.connection.sendMessagePromise<T>({ type, ...extra });
   }
 
+  /** Resolve one panel string for the active Home Assistant language. */
+  private t(key: string): string {
+    return panelString(this.hass, key);
+  }
+
   private describeError(error: unknown): string {
     if (error instanceof Error) return error.message;
     if (typeof error === "object" && error && "message" in error) {
@@ -383,6 +602,10 @@ export class HaosAiPanel extends LitElement {
     const preferences = overview.preferences;
     this.selectedGoals = [...(preferences.goals ?? [])];
     this.ignoredEntities = [...(preferences.ignored_entities ?? [])];
+    this.ignoredDomains = [...(preferences.ignored_domains ?? [])];
+    this.ignoredAreas = [...(preferences.ignored_areas ?? [])];
+    this.ignoredLabels = [...(preferences.ignored_labels ?? [])];
+    this.monthlyTokenBudget = preferences.monthly_token_budget ?? 0;
     this.advisorMode = preferences.advisor_mode ?? "balanced";
     this.scanDepth = preferences.scan_depth ?? "standard";
     this.automationComplexity =
@@ -403,6 +626,14 @@ export class HaosAiPanel extends LitElement {
     this.modelDraft = overview.model;
     this.baseUrlDraft = overview.base_url;
     this.apiKeyDraft = "";
+    const scanProfile = overview.scan_profile;
+    this.scanProfileEnabled = scanProfile?.enabled === true;
+    const fallbackProvider =
+      overview.provider_options[0]?.id ?? this.providerDraft;
+    this.scanProviderDraft = scanProfile?.provider ?? fallbackProvider;
+    this.scanModelDraft = scanProfile?.model ?? "";
+    this.scanBaseUrlDraft = scanProfile?.base_url ?? "";
+    this.scanApiKeyDraft = "";
     this.historyDays = overview.options.history_days ?? 30;
     this.includeExactLocation =
       overview.options.include_exact_location === true;
@@ -645,6 +876,10 @@ export class HaosAiPanel extends LitElement {
           ...this.overview.preferences,
           goals: this.selectedGoals,
           ignored_entities: this.ignoredEntities,
+          ignored_domains: this.ignoredDomains,
+          ignored_areas: this.ignoredAreas,
+          ignored_labels: this.ignoredLabels,
+          monthly_token_budget: this.monthlyTokenBudget,
           advisor_mode: this.advisorMode,
           scan_depth: this.scanDepth,
           automation_complexity: this.automationComplexity,
@@ -686,9 +921,19 @@ export class HaosAiPanel extends LitElement {
           base_url: this.baseUrlDraft.trim(),
           api_key: this.apiKeyDraft,
         },
+        scan_profile: this.scanProfileEnabled
+          ? {
+              enabled: true,
+              provider: this.scanProviderDraft,
+              model: this.scanModelDraft.trim(),
+              base_url: this.scanBaseUrlDraft.trim(),
+              api_key: this.scanApiKeyDraft,
+            }
+          : { enabled: false },
         options: this.connectionOptions(),
       });
       this.apiKeyDraft = "";
+      this.scanApiKeyDraft = "";
       this.settingsNotice =
         "Connection verified and saved. HAOS AI is reloading…";
       window.setTimeout(() => void this.loadOverview(), 1600);
@@ -796,65 +1041,67 @@ export class HaosAiPanel extends LitElement {
     const change = this.changeFor(item);
     if (!change || !this.canApply(change)) return;
     this.pendingChange = change;
+    this.diffLines = undefined;
+    this.diffError = "";
     this.dialog = "approve-change";
+    if (change.kind === "update_automation") void this.loadDiff(change.targetId);
+  }
+
+  /** Fetch the stored automation so the approval dialog can show a real diff. */
+  private async loadDiff(automationId: string): Promise<void> {
+    this.diffLoading = true;
+    this.diffError = "";
+    try {
+      const current = await this.call<{ found: boolean; yaml: string }>(
+        "haos_ai/automation/current",
+        { automation_id: automationId },
+      );
+      if (!current.found) {
+        this.diffError = this.t("diff.unavailable");
+        return;
+      }
+      this.diffLines = diffLines(current.yaml, this.draftYaml);
+    } catch (error) {
+      this.diffError = this.describeError(error);
+    } finally {
+      this.diffLoading = false;
+    }
   }
 
   private async approveChange(): Promise<void> {
     const change = this.pendingChange;
     if (!change || !this.canApply(change) || !this.hass) return;
+    const isAutomation =
+      change.kind === "create_automation" || change.kind === "update_automation";
     this.dialog = null;
     this.busy = true;
     this.error = "";
     try {
-      if (
-        change.kind === "create_automation" ||
-        change.kind === "update_automation"
-      ) {
+      let config: unknown;
+      if (isAutomation) {
         if (!this.draftValidation?.valid) {
           throw new Error("Validate the current automation draft before approval.");
         }
-        if (!this.hass.callApi) {
-          throw new Error("Home Assistant's automation config API is unavailable.");
-        }
-        const config = parse(this.draftYaml);
+        config = parse(this.draftYaml);
         if (!config || typeof config !== "object" || Array.isArray(config)) {
           throw new Error("Automation YAML must contain one object.");
         }
-        const automationId =
-          change.kind === "update_automation"
-            ? change.targetId
-            : crypto.randomUUID().replaceAll("-", "");
-        await this.hass.callApi(
-          "POST",
-          `config/automation/config/${automationId}`,
-          config,
-        );
-      } else if (change.kind === "remove_entity") {
-        await this.call("haos_ai/change/apply", {
-          suggestion_id: change.suggestionId,
-          confirm: true,
-        });
-      } else {
-        if (!change.configEntryId) {
-          throw new Error("The device's integration reference is missing.");
-        }
-        await this.call("haos_ai/change/apply", {
-          suggestion_id: change.suggestionId,
-          confirm: true,
-        });
+      } else if (change.kind === "remove_device" && !change.configEntryId) {
+        throw new Error("The device's integration reference is missing.");
       }
-      if (
-        change.kind === "create_automation" ||
-        change.kind === "update_automation"
-      ) {
-        await this.call("haos_ai/suggestion/update", {
-          suggestion_id: change.suggestionId,
-          status: "saved",
-        });
-      }
+      // Every kind goes through the same backend gate, which re-checks the
+      // permission, re-validates, and confirms the target is still current.
+      await this.call("haos_ai/change/apply", {
+        suggestion_id: change.suggestionId,
+        confirm: true,
+        operation: change.kind,
+        ...(isAutomation ? { config } : {}),
+      });
       this.pendingChange = undefined;
+      this.diffLines = undefined;
       this.settingsNotice = "Approved change applied by Home Assistant.";
       await this.loadOverview();
+      if (this.tab === "activity") await this.loadActivity();
     } catch (error) {
       this.error = this.describeError(error);
     } finally {
@@ -891,6 +1138,75 @@ export class HaosAiPanel extends LitElement {
       ? `Could not add: ${invalid.slice(0, 3).join(", ")}`
       : "";
     this.ignoredEntityQuery = "";
+    this.settingsNotice = "";
+  }
+
+  /** Domains present in this installation, minus the ones already ignored. */
+  private get availableDomains(): string[] {
+    const domains = new Set<string>();
+    for (const entityId of Object.keys(this.hass?.states ?? {})) {
+      const domain = entityId.split(".", 1)[0];
+      if (domain && !this.ignoredDomains.includes(domain)) domains.add(domain);
+    }
+    return [...domains].sort();
+  }
+
+  private get availableAreas(): HassArea[] {
+    return Object.values(this.hass?.areas ?? {})
+      .filter((area) => !this.ignoredAreas.includes(area.area_id))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  private get availableLabels(): string[] {
+    const labels = new Set<string>();
+    for (const entry of Object.values(this.hass?.entities ?? {})) {
+      for (const label of entry.labels ?? []) {
+        if (!this.ignoredLabels.includes(label)) labels.add(label);
+      }
+    }
+    return [...labels].sort();
+  }
+
+  private areaName(areaId: string): string {
+    return this.hass?.areas?.[areaId]?.name ?? areaId;
+  }
+
+  private addIgnoredScope(
+    scope: "domains" | "areas" | "labels",
+    value: string,
+  ): void {
+    const cleaned = value.trim();
+    if (!cleaned) return;
+    if (scope === "domains") {
+      if (!this.ignoredDomains.includes(cleaned)) {
+        this.ignoredDomains = [...this.ignoredDomains, cleaned];
+      }
+      this.ignoredDomainQuery = "";
+    } else if (scope === "areas") {
+      if (!this.ignoredAreas.includes(cleaned)) {
+        this.ignoredAreas = [...this.ignoredAreas, cleaned];
+      }
+      this.ignoredAreaQuery = "";
+    } else {
+      if (!this.ignoredLabels.includes(cleaned)) {
+        this.ignoredLabels = [...this.ignoredLabels, cleaned];
+      }
+      this.ignoredLabelQuery = "";
+    }
+    this.settingsNotice = "";
+  }
+
+  private removeIgnoredScope(
+    scope: "domains" | "areas" | "labels",
+    value: string,
+  ): void {
+    if (scope === "domains") {
+      this.ignoredDomains = this.ignoredDomains.filter((item) => item !== value);
+    } else if (scope === "areas") {
+      this.ignoredAreas = this.ignoredAreas.filter((item) => item !== value);
+    } else {
+      this.ignoredLabels = this.ignoredLabels.filter((item) => item !== value);
+    }
     this.settingsNotice = "";
   }
 
@@ -1024,6 +1340,7 @@ export class HaosAiPanel extends LitElement {
       <div class="shell">
         ${this.renderHeader()}
         ${this.progress ? this.renderProgress() : nothing}
+        ${this.renderBudgetBanner()}
         ${this.error ? this.renderAlert() : nothing}
         <main>
           ${this.loading
@@ -1065,6 +1382,39 @@ export class HaosAiPanel extends LitElement {
           Run scan
         </ha-button>
       </header>
+    `;
+  }
+
+  private get budget(): BudgetStatus | undefined {
+    return this.activity?.budget ?? this.overview?.budget;
+  }
+
+  private renderBudgetBanner() {
+    const budget = this.budget;
+    if (!budget?.budget || (!budget.warning && !budget.exceeded)) return nothing;
+    return html`
+      <div
+        class="budget-banner ${budget.exceeded ? "exceeded" : "warning"}"
+        role=${budget.exceeded ? "alert" : "status"}
+      >
+        <ha-icon
+          icon=${budget.exceeded
+            ? "mdi:alert-octagon-outline"
+            : "mdi:gauge-low"}
+        ></ha-icon>
+        <span>
+          ${budget.exceeded
+            ? this.t("budget.exceeded")
+            : this.t("budget.warning")}
+          <small>
+            ${budget.total_tokens.toLocaleString()} /
+            ${budget.budget.toLocaleString()}
+          </small>
+        </span>
+        <ha-button appearance="plain" @click=${() => this.changeTab("settings")}>
+          ${this.t("budget.title")}
+        </ha-button>
+      </div>
     `;
   }
 
@@ -1143,9 +1493,10 @@ export class HaosAiPanel extends LitElement {
         <span>${this.error}</span>
         <ha-icon-button
           label="Dismiss error"
-          icon="mdi:close"
           @click=${() => (this.error = "")}
-        ></ha-icon-button>
+        >
+          <ha-icon icon="mdi:close"></ha-icon>
+        </ha-icon-button>
       </div>
     `;
   }
@@ -1175,10 +1526,11 @@ export class HaosAiPanel extends LitElement {
                 label=${this.filter === "all"
                   ? "Clear entire inbox"
                   : `Clear ${this.filter} suggestions`}
-                icon="mdi:inbox-remove-outline"
                 ?disabled=${this.busy || suggestions.length === 0}
                 @click=${this.openClearInbox}
-              ></ha-icon-button>
+              >
+                <ha-icon icon="mdi:inbox-remove-outline"></ha-icon>
+              </ha-icon-button>
             </div>
           </div>
           <div class="filters" aria-label="Suggestion filters">
@@ -1458,9 +1810,10 @@ export class HaosAiPanel extends LitElement {
           ? html`
               <ha-icon-button
                 label="Open in Home Assistant"
-                icon="mdi:open-in-new"
                 @click=${() => this.navigate(path)}
-              ></ha-icon-button>
+              >
+                <ha-icon icon="mdi:open-in-new"></ha-icon>
+              </ha-icon-button>
             `
           : nothing}
       </div>
@@ -1476,9 +1829,10 @@ export class HaosAiPanel extends LitElement {
             <h2>Conversations</h2>
             <ha-icon-button
               label="New conversation"
-              icon="mdi:plus"
               @click=${this.newThread}
-            ></ha-icon-button>
+            >
+              <ha-icon icon="mdi:plus"></ha-icon>
+            </ha-icon-button>
           </div>
           <div class="thread-list">
             ${this.threads.length
@@ -1513,14 +1867,16 @@ export class HaosAiPanel extends LitElement {
                 ? html`
                     <ha-icon-button
                       label="Rename conversation"
-                      icon="mdi:pencil-outline"
                       @click=${this.openRenameThread}
-                    ></ha-icon-button>
+                    >
+                      <ha-icon icon="mdi:pencil-outline"></ha-icon>
+                    </ha-icon-button>
                     <ha-icon-button
                       label="Delete conversation"
-                      icon="mdi:delete-outline"
                       @click=${() => (this.dialog = "delete-thread")}
-                    ></ha-icon-button>
+                    >
+                      <ha-icon icon="mdi:delete-outline"></ha-icon>
+                    </ha-icon-button>
                   `
                 : nothing}
             </div>
@@ -1625,9 +1981,10 @@ export class HaosAiPanel extends LitElement {
             </div>
             <ha-icon-button
               label="Refresh activity"
-              icon="mdi:refresh"
               @click=${this.loadActivity}
-            ></ha-icon-button>
+            >
+              <ha-icon icon="mdi:refresh"></ha-icon>
+            </ha-icon-button>
           </div>
           ${receipts.length
             ? receipts.map((item) => this.renderReceiptRow(item))
@@ -1697,6 +2054,8 @@ export class HaosAiPanel extends LitElement {
             <dd>90 days</dd>
           </div>
         </dl>
+        ${this.renderBudgetStats()}
+        ${this.renderAppliedChanges()}
         <section class="detail-section">
           <h3>What a receipt records</h3>
           <p>
@@ -1705,6 +2064,82 @@ export class HaosAiPanel extends LitElement {
           </p>
         </section>
       </div>
+    `;
+  }
+
+  private renderBudgetStats() {
+    const budget = this.budget;
+    if (!budget) return nothing;
+    return html`
+      <section class="detail-section">
+        <h3>${this.t("budget.title")}</h3>
+        <dl class="stats-list compact-stats">
+          <div>
+            <dt>${this.t("budget.used")}</dt>
+            <dd>${budget.total_tokens.toLocaleString()}</dd>
+          </div>
+          <div>
+            <dt>${this.t("budget.remaining")}</dt>
+            <dd>
+              ${budget.budget
+                ? (budget.remaining ?? 0).toLocaleString()
+                : this.t("budget.no_cap")}
+            </dd>
+          </div>
+          <div>
+            <dt>${this.t("budget.requests")}</dt>
+            <dd>${budget.requests}</dd>
+          </div>
+        </dl>
+        ${budget.budget
+          ? html`<div
+              class="budget-meter ${budget.exceeded
+                ? "exceeded"
+                : budget.warning
+                  ? "warning"
+                  : ""}"
+              role="img"
+              aria-label=${`${Math.round(budget.ratio * 100)}%`}
+            >
+              <span style=${`width:${Math.min(100, budget.ratio * 100)}%`}></span>
+            </div>`
+          : nothing}
+      </section>
+    `;
+  }
+
+  private renderAppliedChanges() {
+    const applied =
+      this.activity?.applied_changes ?? this.overview?.applied_changes ?? [];
+    return html`
+      <section class="detail-section applied-section">
+        <h3>${this.t("applied.title")}</h3>
+        <p>${this.t("applied.description")}</p>
+        ${applied.length
+          ? html`<ul class="applied-list">
+              ${applied.map(
+                (item) => html`
+                  <li>
+                    <span class="applied-outcome ${item.outcome}">
+                      ${this.t(`applied.outcome.${item.outcome}`)}
+                    </span>
+                    <span class="applied-body">
+                      <strong>${item.suggestion_title || item.label}</strong>
+                      <small>
+                        ${item.kind.replaceAll("_", " ")} ·
+                        <code>${item.target_id}</code> ·
+                        ${this.relativeDate(item.applied_at)}
+                      </small>
+                      ${item.outcome_detail
+                        ? html`<small>${item.outcome_detail}</small>`
+                        : nothing}
+                    </span>
+                  </li>
+                `,
+              )}
+            </ul>`
+          : html`<p class="muted">${this.t("applied.empty")}</p>`}
+      </section>
     `;
   }
 
@@ -1872,6 +2307,7 @@ export class HaosAiPanel extends LitElement {
                 </div>
               `
             : nothing}
+          ${this.renderScanProfile()}
           <div class="settings-action">
             <span>Saving performs a small provider connection test.</span>
             <ha-button appearance="accent" ?disabled=${this.busy || !this.modelDraft.trim()} @click=${this.saveConnection}>
@@ -1983,8 +2419,8 @@ export class HaosAiPanel extends LitElement {
           </div>
 
           <div class="settings-subsection entity-exclusions">
-            <h4>Ignored entities</h4>
-            <p class="field-help">Search by name or entity ID. You can also paste comma-, space-, or line-separated IDs.</p>
+            <h4>${this.t("ignore.entities")}</h4>
+            <p class="field-help">${this.t("ignore.entities_help")}</p>
             <div class="entity-picker">
               <ha-icon icon="mdi:magnify"></ha-icon>
               <input
@@ -2032,10 +2468,10 @@ export class HaosAiPanel extends LitElement {
                       <strong>${entity?.attributes.friendly_name ?? entityId}</strong>
                       ${entity
                         ? html`<small>${entityId}</small>`
-                        : html`<small>Not currently found</small>`}
+                        : html`<small>${this.t("ignore.not_found")}</small>`}
                     </span>
                     <button
-                      aria-label=${`Stop ignoring ${entityId}`}
+                      aria-label=${`${this.t("ignore.stop")} ${entityId}`}
                       @click=${() =>
                         (this.ignoredEntities = this.ignoredEntities.filter(
                           (value) => value !== entityId,
@@ -2046,6 +2482,8 @@ export class HaosAiPanel extends LitElement {
               })}
             </div>
           </div>
+          ${this.renderIgnoreScopes()}
+          ${this.renderBudgetSettings()}
           <div class="settings-action">
             <span>Used by future scans and conversations.</span>
             <ha-button appearance="accent" ?disabled=${this.busy} @click=${this.savePreferences}>
@@ -2137,7 +2575,10 @@ export class HaosAiPanel extends LitElement {
                   <span>Scan day</span>
                   <select .value=${String(this.scheduleWeekday)} @change=${(event: Event) =>
                     (this.scheduleWeekday = Number((event.target as HTMLSelectElement).value))}>
-                    ${WEEKDAYS.map((day, index) => html`<option value=${index}>${day}</option>`)}
+                    ${WEEKDAY_KEYS.map(
+                      (day, index) =>
+                        html`<option value=${index}>${this.t(day)}</option>`,
+                    )}
                   </select>
                 </label>`
               : nothing}
@@ -2184,6 +2625,275 @@ export class HaosAiPanel extends LitElement {
           </div>
         </ha-card>
       </section>
+    `;
+  }
+
+  private renderScanProfile() {
+    const options = this.overview?.provider_options ?? [];
+    const selected = options.find((item) => item.id === this.scanProviderDraft);
+    return html`
+      <div class="settings-subsection scan-profile">
+        <h4>${this.t("scan_profile.title")}</h4>
+        <p class="field-help">${this.t("scan_profile.description")}</p>
+        <div class="toggle-list">
+          <label>
+            <input
+              type="checkbox"
+              .checked=${this.scanProfileEnabled}
+              @change=${(event: Event) => {
+                this.scanProfileEnabled = (
+                  event.target as HTMLInputElement
+                ).checked;
+                this.settingsNotice = "";
+              }}
+            />
+            <span>
+              <strong>${this.t("scan_profile.enable")}</strong>
+              <small>${this.t("scan_profile.enable_help")}</small>
+            </span>
+          </label>
+        </div>
+        ${this.scanProfileEnabled
+          ? html`
+              <div class="settings-fields two-column">
+                <label>
+                  <span>${this.t("scan_profile.provider")}</span>
+                  <select
+                    .value=${this.scanProviderDraft}
+                    @change=${(event: Event) => {
+                      const value = (event.target as HTMLSelectElement).value;
+                      const next = options.find((item) => item.id === value);
+                      this.scanProviderDraft = value;
+                      if (next) {
+                        if (!this.scanModelDraft) {
+                          this.scanModelDraft = next.default_model;
+                        }
+                        if (!this.scanBaseUrlDraft) {
+                          this.scanBaseUrlDraft = next.default_base_url;
+                        }
+                      }
+                      this.scanApiKeyDraft = "";
+                      this.settingsNotice = "";
+                    }}
+                  >
+                    ${options.map(
+                      (provider) => html`
+                        <option
+                          value=${provider.id}
+                          ?selected=${provider.id === this.scanProviderDraft}
+                        >${provider.label}</option>
+                      `,
+                    )}
+                  </select>
+                </label>
+                <label>
+                  <span>${this.t("scan_profile.model")}</span>
+                  <input
+                    .value=${this.scanModelDraft}
+                    @input=${(event: InputEvent) =>
+                      (this.scanModelDraft = (
+                        event.target as HTMLInputElement
+                      ).value)}
+                    placeholder=${selected?.default_model || "Model identifier"}
+                    autocomplete="off"
+                  />
+                </label>
+                <label>
+                  <span>${this.t("scan_profile.api_key")}</span>
+                  <input
+                    type="password"
+                    .value=${this.scanApiKeyDraft}
+                    @input=${(event: InputEvent) =>
+                      (this.scanApiKeyDraft = (
+                        event.target as HTMLInputElement
+                      ).value)}
+                    placeholder="Stored key remains unchanged"
+                    autocomplete="new-password"
+                  />
+                </label>
+                <label>
+                  <span>${this.t("scan_profile.base_url")}</span>
+                  <input
+                    type="url"
+                    .value=${this.scanBaseUrlDraft}
+                    @input=${(event: InputEvent) =>
+                      (this.scanBaseUrlDraft = (
+                        event.target as HTMLInputElement
+                      ).value)}
+                    placeholder=${selected?.default_base_url || "https://…"}
+                    autocomplete="url"
+                  />
+                </label>
+              </div>
+              <p class="field-help">
+                ${this.overview?.scan_profile?.active
+                  ? this.t("scan_profile.active")
+                  : this.t("scan_profile.inactive")}
+              </p>
+            `
+          : nothing}
+      </div>
+    `;
+  }
+
+  private renderScopePicker(
+    scope: "domains" | "areas" | "labels",
+    titleKey: string,
+    helpKey: string,
+    query: string,
+    onQuery: (value: string) => void,
+    suggestions: Array<{ id: string; label: string }>,
+    selected: Array<{ id: string; label: string }>,
+  ) {
+    const filtered = query
+      ? suggestions
+          .filter((item) =>
+            `${item.id} ${item.label}`
+              .toLocaleLowerCase()
+              .includes(query.trim().toLocaleLowerCase()),
+          )
+          .slice(0, 8)
+      : [];
+    return html`
+      <div class="settings-subsection entity-exclusions">
+        <h4>${this.t(titleKey)}</h4>
+        <p class="field-help">${this.t(helpKey)}</p>
+        <div class="entity-picker">
+          <ha-icon icon="mdi:magnify"></ha-icon>
+          <input
+            .value=${query}
+            @input=${(event: InputEvent) =>
+              onQuery((event.target as HTMLInputElement).value)}
+            @keydown=${(event: KeyboardEvent) => {
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              this.addIgnoredScope(scope, filtered[0]?.id ?? query);
+            }}
+            placeholder=${this.t(titleKey)}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded=${filtered.length ? "true" : "false"}
+          />
+          ${filtered.length
+            ? html`
+                <div class="entity-results" role="listbox">
+                  ${filtered.map(
+                    (item) => html`
+                      <button
+                        role="option"
+                        @click=${() => this.addIgnoredScope(scope, item.id)}
+                      >
+                        <span>
+                          <strong>${item.label}</strong>
+                          ${item.label === item.id
+                            ? nothing
+                            : html`<small>${item.id}</small>`}
+                        </span>
+                      </button>
+                    `,
+                  )}
+                </div>
+              `
+            : nothing}
+        </div>
+        <div class="entity-chips" aria-label=${this.t(titleKey)}>
+          ${selected.map(
+            (item) => html`
+              <span>
+                <span><strong>${item.label}</strong></span>
+                <button
+                  aria-label=${`${this.t("ignore.stop")} ${item.label}`}
+                  @click=${() => this.removeIgnoredScope(scope, item.id)}
+                ><ha-icon icon="mdi:close"></ha-icon></button>
+              </span>
+            `,
+          )}
+        </div>
+      </div>
+    `;
+  }
+
+  private renderIgnoreScopes() {
+    return html`
+      ${this.renderScopePicker(
+        "domains",
+        "ignore.domains",
+        "ignore.domains_help",
+        this.ignoredDomainQuery,
+        (value) => (this.ignoredDomainQuery = value),
+        this.availableDomains.map((domain) => ({ id: domain, label: domain })),
+        this.ignoredDomains.map((domain) => ({ id: domain, label: domain })),
+      )}
+      ${this.renderScopePicker(
+        "areas",
+        "ignore.areas",
+        "ignore.areas_help",
+        this.ignoredAreaQuery,
+        (value) => (this.ignoredAreaQuery = value),
+        this.availableAreas.map((area) => ({
+          id: area.area_id,
+          label: area.name,
+        })),
+        this.ignoredAreas.map((areaId) => ({
+          id: areaId,
+          label: this.areaName(areaId),
+        })),
+      )}
+      ${this.renderScopePicker(
+        "labels",
+        "ignore.labels",
+        "ignore.labels_help",
+        this.ignoredLabelQuery,
+        (value) => (this.ignoredLabelQuery = value),
+        this.availableLabels.map((label) => ({ id: label, label })),
+        this.ignoredLabels.map((label) => ({ id: label, label })),
+      )}
+      <p class="field-help enforced-note">
+        <ha-icon icon="mdi:shield-lock-outline"></ha-icon>
+        ${this.t("ignore.enforced")}
+      </p>
+    `;
+  }
+
+  private renderBudgetSettings() {
+    const budget = this.budget;
+    return html`
+      <div class="settings-subsection">
+        <h4>${this.t("budget.title")}</h4>
+        <p class="field-help">${this.t("budget.description")}</p>
+        <div class="settings-fields two-column compact-fields">
+          <label>
+            <span>${this.t("budget.field")}</span>
+            <input
+              type="number"
+              min="0"
+              step="1000"
+              .value=${String(this.monthlyTokenBudget)}
+              @input=${(event: InputEvent) => {
+                this.monthlyTokenBudget = Math.max(
+                  0,
+                  Number((event.target as HTMLInputElement).value) || 0,
+                );
+                this.settingsNotice = "";
+              }}
+            />
+            <small>${this.t("budget.unlimited")}</small>
+          </label>
+          ${budget
+            ? html`<label class="readonly-field">
+                <span>${this.t("budget.used")}</span>
+                <output>${budget.total_tokens.toLocaleString()}</output>
+                <small>
+                  ${budget.budget
+                    ? `${this.t("budget.remaining")}: ${(
+                        budget.remaining ?? 0
+                      ).toLocaleString()}`
+                    : this.t("budget.no_cap")}
+                </small>
+              </label>`
+            : nothing}
+        </div>
+      </div>
     `;
   }
 
@@ -2352,6 +3062,8 @@ export class HaosAiPanel extends LitElement {
           @closed=${() => {
             this.dialog = null;
             this.pendingChange = undefined;
+            this.diffLines = undefined;
+            this.diffError = "";
           }}
         >
           <div class="dialog-content approval-review">
@@ -2367,6 +3079,7 @@ export class HaosAiPanel extends LitElement {
               <div><dt>Target</dt><dd>${change.label}</dd></div>
               <div><dt>Identifier</dt><dd><code>${change.targetId}</code></dd></div>
             </dl>
+            ${change.kind === "update_automation" ? this.renderDiff() : nothing}
             ${change.kind === "create_automation" ||
             change.kind === "update_automation"
               ? html`
@@ -2381,7 +3094,9 @@ export class HaosAiPanel extends LitElement {
             <ha-button appearance="plain" @click=${() => {
               this.dialog = null;
               this.pendingChange = undefined;
-            }}>Cancel</ha-button>
+              this.diffLines = undefined;
+              this.diffError = "";
+            }}>${this.t("action.cancel")}</ha-button>
             <ha-button
               variant=${destructive ? "danger" : nothing}
               appearance=${destructive ? "filled" : "accent"}
@@ -2412,6 +3127,38 @@ export class HaosAiPanel extends LitElement {
           <ha-button variant="danger" appearance="filled" @click=${this.deleteThread}>Delete</ha-button>
         </div>
       </ha-adaptive-dialog>
+    `;
+  }
+
+  private renderDiff() {
+    if (this.diffLoading) {
+      return html`<p class="muted">${this.t("diff.loading")}</p>`;
+    }
+    if (this.diffError) {
+      return html`<p class="danger-copy">${this.diffError}</p>`;
+    }
+    if (!this.diffLines) return nothing;
+    const changed = this.diffLines.some((line) => line.type !== "same");
+    if (!changed) {
+      return html`<p class="muted">${this.t("diff.identical")}</p>`;
+    }
+    return html`
+      <section class="diff-section">
+        <h3>${this.t("diff.title")}</h3>
+        <div class="diff-legend">
+          <span class="removed">${this.t("diff.current")}</span>
+          <span class="added">${this.t("diff.proposed")}</span>
+        </div>
+        <pre class="diff"><code>${this.diffLines.map(
+          (line) => html`<span class="diff-line ${line.type}"
+            >${line.type === "added"
+              ? "+"
+              : line.type === "removed"
+                ? "-"
+                : " "} ${line.text}
+</span>`,
+        )}</code></pre>
+      </section>
     `;
   }
 
@@ -3952,6 +4699,197 @@ export class HaosAiPanel extends LitElement {
 
     .danger-copy {
       color: var(--haos-error) !important;
+    }
+
+    .muted {
+      color: var(--haos-muted);
+      font-size: var(--ha-font-size-m, 14px);
+    }
+
+    /* Budget · F2 */
+    .budget-banner {
+      display: flex;
+      align-items: center;
+      gap: var(--ha-space-3, 12px);
+      padding: var(--ha-space-3, 12px) var(--ha-space-4, 16px);
+      border-bottom: 1px solid var(--haos-divider);
+      background: var(--haos-warning-soft);
+      color: var(--haos-text);
+      font-size: var(--ha-font-size-m, 14px);
+    }
+
+    .budget-banner.exceeded {
+      background: var(--haos-error-soft);
+    }
+
+    .budget-banner ha-icon {
+      flex: none;
+      color: var(--haos-warning);
+    }
+
+    .budget-banner.exceeded ha-icon {
+      color: var(--haos-error);
+    }
+
+    .budget-banner span {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .budget-banner small {
+      color: var(--haos-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .budget-meter {
+      margin-top: var(--ha-space-3, 12px);
+      height: 8px;
+      border-radius: 999px;
+      background: var(--haos-surface-lower);
+      overflow: hidden;
+    }
+
+    .budget-meter > span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--haos-primary);
+    }
+
+    .budget-meter.warning > span {
+      background: var(--haos-warning);
+    }
+
+    .budget-meter.exceeded > span {
+      background: var(--haos-error);
+    }
+
+    .readonly-field output {
+      display: block;
+      padding: var(--ha-space-2, 8px) 0;
+      font-size: var(--ha-font-size-l, 16px);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Applied-change outcomes · F6 */
+    .applied-list {
+      list-style: none;
+      margin: var(--ha-space-3, 12px) 0 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .applied-list li {
+      display: flex;
+      gap: var(--ha-space-3, 12px);
+      padding: var(--ha-space-3, 12px) 0;
+      border-top: 1px solid var(--haos-divider);
+    }
+
+    .applied-body {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .applied-body small {
+      color: var(--haos-muted);
+      overflow-wrap: anywhere;
+    }
+
+    .applied-outcome {
+      flex: none;
+      align-self: flex-start;
+      padding: 2px var(--ha-space-2, 8px);
+      border-radius: var(--ha-border-radius-sm, 4px);
+      background: var(--haos-surface-lower);
+      color: var(--haos-muted);
+      font-size: var(--ha-font-size-s, 12px);
+      white-space: nowrap;
+    }
+
+    .applied-outcome.kept {
+      background: var(--haos-success-soft);
+      color: var(--haos-success);
+    }
+
+    .applied-outcome.disabled,
+    .applied-outcome.reverted {
+      background: var(--haos-warning-soft);
+      color: var(--haos-warning);
+    }
+
+    /* Automation diff · F5 */
+    .diff-section {
+      margin-top: var(--ha-space-4, 16px);
+    }
+
+    .diff-legend {
+      display: flex;
+      gap: var(--ha-space-3, 12px);
+      margin-bottom: var(--ha-space-2, 8px);
+      font-size: var(--ha-font-size-s, 12px);
+      color: var(--haos-muted);
+    }
+
+    .diff-legend .removed::before,
+    .diff-legend .added::before {
+      content: "";
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      margin-right: var(--ha-space-1, 4px);
+      border-radius: 2px;
+      vertical-align: middle;
+    }
+
+    .diff-legend .removed::before {
+      background: var(--haos-error);
+    }
+
+    .diff-legend .added::before {
+      background: var(--haos-success);
+    }
+
+    pre.diff {
+      max-height: 320px;
+      overflow: auto;
+      margin: 0;
+      padding: 0;
+      background: var(--haos-code-surface);
+      color: var(--haos-code-text);
+      border-radius: var(--ha-border-radius-md, 8px);
+    }
+
+    .diff-line {
+      display: block;
+      padding: 0 var(--ha-space-3, 12px);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .diff-line.added {
+      background: color-mix(in srgb, var(--haos-success) 26%, transparent);
+    }
+
+    .diff-line.removed {
+      background: color-mix(in srgb, var(--haos-error) 26%, transparent);
+    }
+
+    /* Ignore scopes · F8 */
+    .enforced-note {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--ha-space-2, 8px);
+    }
+
+    .enforced-note ha-icon {
+      flex: none;
+      --mdc-icon-size: 18px;
+      color: var(--haos-success);
     }
 
     .category-list {

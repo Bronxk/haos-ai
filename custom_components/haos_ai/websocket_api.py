@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import uuid
 from typing import Any
 
 import voluptuous as vol
@@ -14,6 +16,8 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
+from .advisor import BudgetExceededError
+from .automation_store import async_get_automation, async_save_automation
 from .automation_validation import async_validate_automation, export_yaml
 from .const import (
     CONF_BASE_URL,
@@ -22,6 +26,11 @@ from .const import (
     CONF_MODEL,
     CONF_NOTIFY_NEW_SUGGESTIONS,
     CONF_PROVIDER,
+    CONF_SCAN_API_KEY,
+    CONF_SCAN_BASE_URL,
+    CONF_SCAN_MODEL,
+    CONF_SCAN_PROFILE_ENABLED,
+    CONF_SCAN_PROVIDER,
     CONF_SCHEDULE,
     CONF_SCHEDULE_TIME,
     CONF_SCHEDULE_WEEKDAY,
@@ -39,11 +48,14 @@ from .const import (
     PROVIDERS,
     SCHEDULES,
 )
-from .models import RecommendationStatus
+from .context import device_config_entry_ids
+from .models import AppliedChange, RecommendationStatus
 from .providers import create_provider
 from .providers.base import ProviderAuthError, ProviderError, normalize_base_url
 from .runtime import HaosAIRuntime
 from .storage import normalize_preferences
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _runtime(hass: HomeAssistant) -> HaosAIRuntime:
@@ -54,8 +66,20 @@ def _runtime(hass: HomeAssistant) -> HaosAIRuntime:
 
 
 def _fail(connection: Any, msg_id: int, err: Exception) -> None:
-    code = "provider_error" if isinstance(err, ProviderError) else "unknown_error"
-    connection.send_error(msg_id, code, str(err))
+    if isinstance(err, BudgetExceededError):
+        connection.send_error(msg_id, "budget_exceeded", str(err))
+        return
+    if isinstance(err, ProviderError | HomeAssistantError | ValueError):
+        code = (
+            "provider_error" if isinstance(err, ProviderError) else "operation_failed"
+        )
+        connection.send_error(msg_id, code, str(err))
+        return
+    # Unexpected failures keep their detail in the log, not in the browser.
+    _LOGGER.exception("Unhandled HAOS AI WebSocket error", exc_info=err)
+    connection.send_error(
+        msg_id, "unknown_error", "An unexpected error occurred; check the logs"
+    )
 
 
 def _validated_options(incoming: dict[str, Any]) -> dict[str, Any]:
@@ -119,6 +143,15 @@ async def ws_overview(
             "provider": entry.data.get("provider"),
             "model": entry.data.get("model"),
             "base_url": entry.data.get("base_url"),
+            "scan_profile": {
+                "enabled": bool(entry.data.get(CONF_SCAN_PROFILE_ENABLED)),
+                "provider": entry.data.get(CONF_SCAN_PROVIDER),
+                "model": entry.data.get(CONF_SCAN_MODEL),
+                "base_url": entry.data.get(CONF_SCAN_BASE_URL),
+                "active": runtime.advisor.uses_scan_profile,
+            },
+            "budget": runtime.advisor.budget_status(),
+            "applied_changes": runtime.store.list_applied_changes()[:50],
             "provider_options": [
                 {
                     "id": provider,
@@ -244,11 +277,81 @@ async def ws_suggestions_clear(
     connection.send_result(msg["id"], {"removed": removed})
 
 
+PERMISSION_KEYS = {
+    "create_automation": "create_automations",
+    "update_automation": "update_automations",
+    "remove_entity": "remove_entities",
+    "remove_device": "remove_devices",
+}
+
+
+async def _async_apply_automation(
+    hass: HomeAssistant,
+    runtime: HaosAIRuntime,
+    suggestion: dict[str, Any],
+    operation_type: str,
+    config: dict[str, Any],
+) -> dict[str, Any]:
+    """Re-validate and write one approved automation on the server.
+
+    The browser's permission check is a convenience only; this is the gate
+    that actually decides whether a change reaches Home Assistant.
+    """
+    automation = suggestion.get("automation")
+    if not isinstance(automation, dict):
+        raise HomeAssistantError("This suggestion has no automation draft")
+
+    validation = await async_validate_automation(hass, config)
+    if not validation.valid:
+        raise HomeAssistantError(
+            "The automation no longer validates: "
+            + "; ".join(f"{key}: {value}" for key, value in validation.errors.items())
+        )
+
+    if operation_type == "update_automation":
+        target_id = str(automation.get("target_id") or "")
+        if not target_id:
+            raise HomeAssistantError("This draft does not target an automation")
+        # Live stale-target check: the automation must still exist at the
+        # moment of approval, not merely at the moment of the scan.
+        if await async_get_automation(hass, target_id) is None:
+            raise HomeAssistantError(
+                "The target automation no longer exists; run a new scan"
+            )
+        automation_id = target_id
+    else:
+        if automation.get("target_id"):
+            raise HomeAssistantError(
+                "This draft replaces an existing automation; approve it as an update"
+            )
+        automation_id = uuid.uuid4().hex
+
+    replaced = await async_save_automation(hass, automation_id, config)
+    applied = runtime.store.record_applied_change(
+        AppliedChange(
+            kind=operation_type,
+            target_id=automation_id,
+            label=str(config.get("alias") or suggestion.get("title", ""))[:160],
+            suggestion_id=str(suggestion.get("id", "")),
+            suggestion_title=str(suggestion.get("title", ""))[:120],
+        )
+    )
+    return {
+        "applied": True,
+        "operation": operation_type,
+        "automation_id": automation_id,
+        "replaced": replaced,
+        "applied_change": applied,
+    }
+
+
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "haos_ai/change/apply",
         vol.Required("suggestion_id"): str,
         vol.Required("confirm"): bool,
+        vol.Optional("operation"): vol.In(sorted(PERMISSION_KEYS)),
+        vol.Optional("config"): dict,
     }
 )
 @websocket_api.require_admin
@@ -256,7 +359,7 @@ async def ws_suggestions_clear(
 async def ws_change_apply(
     hass: HomeAssistant, connection: Any, msg: dict[str, Any]
 ) -> None:
-    """Revalidate and apply one explicitly approved registry operation."""
+    """Revalidate and apply one explicitly approved change."""
     runtime = _runtime(hass)
     if msg["confirm"] is not True:
         connection.send_error(
@@ -264,18 +367,26 @@ async def ws_change_apply(
         )
         return
     suggestion = runtime.store.get_suggestion(msg["suggestion_id"])
-    operation = suggestion.get("operation") if suggestion else None
-    if not isinstance(operation, dict):
+    if suggestion is None:
+        connection.send_error(msg["id"], "not_found", "Suggestion not found")
+        return
+    operation = suggestion.get("operation")
+    requested = str(msg.get("operation", ""))
+    automation_operations = {"create_automation", "update_automation"}
+
+    if requested in automation_operations:
+        operation_type = requested
+        target_id = ""
+    elif isinstance(operation, dict):
+        operation_type = str(operation.get("type", ""))
+        target_id = str(operation.get("target_id", ""))
+    else:
         connection.send_error(
             msg["id"], "not_found", "Approved operation not found"
         )
         return
-    operation_type = str(operation.get("type", ""))
-    target_id = str(operation.get("target_id", ""))
-    permission_key = {
-        "remove_entity": "remove_entities",
-        "remove_device": "remove_devices",
-    }.get(operation_type)
+
+    permission_key = PERMISSION_KEYS.get(operation_type)
     permissions = runtime.store.data["preferences"].get(
         "change_permissions", {}
     )
@@ -286,6 +397,17 @@ async def ws_change_apply(
         return
 
     try:
+        if operation_type in automation_operations:
+            config = msg.get("config")
+            if not isinstance(config, dict) or not config:
+                raise HomeAssistantError("The approved automation config is missing")
+            result = await _async_apply_automation(
+                hass, runtime, suggestion, operation_type, config
+            )
+            runtime.store.update_suggestion(msg["suggestion_id"], "saved")
+            await runtime.store.async_save()
+            connection.send_result(msg["id"], result)
+            return
         if operation_type == "remove_entity":
             if hass.states.get(target_id):
                 raise HomeAssistantError(
@@ -322,13 +444,7 @@ async def ws_change_apply(
                 raise HomeAssistantError(
                     "The owning integration no longer supports device removal"
                 )
-            config_entry_ids = set(
-                getattr(device, "config_entries", ()) or ()
-            )
-            if not config_entry_ids and (
-                current_entry_id := getattr(device, "config_entry_id", None)
-            ):
-                config_entry_ids.add(current_entry_id)
+            config_entry_ids = set(device_config_entry_ids(device))
             if config_entry_id not in config_entry_ids:
                 raise HomeAssistantError("Device ownership changed; run a new scan")
             integration = await loader.async_get_integration(
@@ -343,10 +459,24 @@ async def ws_change_apply(
                 device_registry.async_update_device(
                     target_id, remove_config_entry_id=config_entry_id
                 )
+        applied = runtime.store.record_applied_change(
+            AppliedChange(
+                kind=operation_type,
+                target_id=target_id,
+                label=str(operation.get("label") or target_id)[:160],
+                suggestion_id=str(suggestion.get("id", "")),
+                suggestion_title=str(suggestion.get("title", ""))[:120],
+            )
+        )
         runtime.store.update_suggestion(msg["suggestion_id"], "saved")
         await runtime.store.async_save()
         connection.send_result(
-            msg["id"], {"applied": True, "operation": operation_type}
+            msg["id"],
+            {
+                "applied": True,
+                "operation": operation_type,
+                "applied_change": applied,
+            },
         )
     except Exception as err:
         _fail(connection, msg["id"], err)
@@ -461,13 +591,17 @@ async def ws_chat_thread_rename(
 async def ws_activity(
     hass: HomeAssistant, connection: Any, msg: dict[str, Any]
 ) -> None:
-    """Return scan history and privacy receipt summaries."""
+    """Return scan history, privacy receipts, usage, and applied outcomes."""
     runtime = _runtime(hass)
+    if runtime.advisor.refresh_applied_outcomes():
+        await runtime.store.async_save()
     connection.send_result(
         msg["id"],
         {
             "scan_runs": list(reversed(runtime.store.data["scan_runs"][-50:])),
             "receipts": runtime.store.list_receipt_summaries()[:100],
+            "budget": runtime.advisor.budget_status(),
+            "applied_changes": runtime.store.list_applied_changes()[:100],
         },
     )
 
@@ -520,6 +654,34 @@ async def ws_automation_validate(
 
 @websocket_api.websocket_command(
     {
+        vol.Required("type"): "haos_ai/automation/current",
+        vol.Required("automation_id"): vol.All(str, vol.Length(min=1, max=120)),
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_automation_current(
+    hass: HomeAssistant, connection: Any, msg: dict[str, Any]
+) -> None:
+    """Return the stored config for one automation so a draft can be diffed."""
+    try:
+        config = await async_get_automation(hass, msg["automation_id"])
+    except Exception as err:
+        _fail(connection, msg["id"], err)
+        return
+    if config is None:
+        connection.send_result(
+            msg["id"], {"found": False, "config": None, "yaml": ""}
+        )
+        return
+    connection.send_result(
+        msg["id"],
+        {"found": True, "config": config, "yaml": export_yaml(config)},
+    )
+
+
+@websocket_api.websocket_command(
+    {
         vol.Required("type"): "haos_ai/preferences/update",
         vol.Required("preferences"): dict,
     }
@@ -542,11 +704,42 @@ async def ws_preferences_update(
     connection.send_result(msg["id"], preferences)
 
 
+async def _async_validated_profile(
+    hass: HomeAssistant,
+    incoming: dict[str, Any],
+    stored_key: str,
+    stored_provider: str | None,
+) -> tuple[str, str, str, str]:
+    """Validate one provider profile and return its normalized fields.
+
+    An empty API key keeps the stored one, but only when the provider is
+    unchanged; a new provider always needs its own credential.
+    """
+    provider = str(incoming.get(CONF_PROVIDER, ""))
+    if provider not in PROVIDERS:
+        raise ValueError("Unknown provider")
+    api_key = str(incoming.get(CONF_API_KEY, "")).strip()
+    if not api_key:
+        if provider != stored_provider or not stored_key:
+            raise ProviderAuthError("Enter an API key when changing providers")
+        api_key = stored_key
+    model = str(incoming.get(CONF_MODEL, "")).strip()
+    if not model:
+        raise ValueError("Enter a model")
+    base_url = normalize_base_url(str(incoming.get(CONF_BASE_URL, "")))
+    client = create_provider(
+        provider, async_get_clientsession(hass), api_key, base_url, model
+    )
+    await client.validate()
+    return provider, api_key, model, base_url
+
+
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "haos_ai/config/update",
         vol.Required("connection"): dict,
         vol.Required("options"): dict,
+        vol.Optional("scan_profile"): vol.Any(dict, None),
     }
 )
 @websocket_api.require_admin
@@ -557,47 +750,19 @@ async def ws_config_update(
     """Validate and update connection plus scan options without exposing secrets."""
     runtime = _runtime(hass)
     entry = runtime.entry
-    incoming = msg["connection"]
-    provider = str(incoming.get(CONF_PROVIDER, ""))
-    if provider not in PROVIDERS:
-        connection.send_error(msg["id"], "invalid_provider", "Unknown provider")
-        return
-
-    api_key = str(incoming.get(CONF_API_KEY, "")).strip()
-    if not api_key:
-        if provider != entry.data.get(CONF_PROVIDER):
-            connection.send_error(
-                msg["id"],
-                "api_key_required",
-                "Enter an API key when changing providers",
-            )
-            return
-        api_key = str(entry.data[CONF_API_KEY])
-
+    scan_profile = msg.get("scan_profile")
     try:
-        model = str(incoming.get(CONF_MODEL, "")).strip()
-        if not model:
-            raise ValueError("Enter a model")
-        base_url = normalize_base_url(str(incoming.get(CONF_BASE_URL, "")))
-        client = create_provider(
-            provider,
-            async_get_clientsession(hass),
-            api_key,
-            base_url,
-            model,
+        provider, api_key, model, base_url = await _async_validated_profile(
+            hass,
+            msg["connection"],
+            str(entry.data.get(CONF_API_KEY, "")),
+            entry.data.get(CONF_PROVIDER),
         )
-        await client.validate()
     except ProviderAuthError as err:
         connection.send_error(msg["id"], "invalid_auth", str(err))
         return
     except (ProviderError, ValueError) as err:
         connection.send_error(msg["id"], "cannot_connect", str(err))
-        return
-
-    try:
-        options = _validated_options(msg["options"])
-    except (TypeError, ValueError) as err:
-        connection.send_error(msg["id"], "invalid_options", str(err))
         return
 
     data = {
@@ -606,12 +771,54 @@ async def ws_config_update(
         CONF_MODEL: model,
         CONF_BASE_URL: base_url,
     }
+
+    if isinstance(scan_profile, dict) and scan_profile.get("enabled"):
+        try:
+            (
+                scan_provider,
+                scan_key,
+                scan_model,
+                scan_base_url,
+            ) = await _async_validated_profile(
+                hass,
+                scan_profile,
+                str(entry.data.get(CONF_SCAN_API_KEY, "")),
+                entry.data.get(CONF_SCAN_PROVIDER),
+            )
+        except ProviderAuthError as err:
+            connection.send_error(msg["id"], "scan_invalid_auth", str(err))
+            return
+        except (ProviderError, ValueError) as err:
+            connection.send_error(msg["id"], "scan_cannot_connect", str(err))
+            return
+        data.update(
+            {
+                CONF_SCAN_PROFILE_ENABLED: True,
+                CONF_SCAN_PROVIDER: scan_provider,
+                CONF_SCAN_API_KEY: scan_key,
+                CONF_SCAN_MODEL: scan_model,
+                CONF_SCAN_BASE_URL: scan_base_url,
+            }
+        )
+
+    try:
+        options = _validated_options(msg["options"])
+    except (TypeError, ValueError) as err:
+        connection.send_error(msg["id"], "invalid_options", str(err))
+        return
+
     connection.send_result(
         msg["id"],
         {
             "provider": provider,
             "model": model,
             "base_url": base_url,
+            "scan_profile": {
+                "enabled": bool(data.get(CONF_SCAN_PROFILE_ENABLED)),
+                "provider": data.get(CONF_SCAN_PROVIDER),
+                "model": data.get(CONF_SCAN_MODEL),
+                "base_url": data.get(CONF_SCAN_BASE_URL),
+            },
             "options": options,
             "reloading": True,
         },
@@ -664,6 +871,7 @@ def async_register(hass: HomeAssistant) -> None:
         ws_activity,
         ws_privacy_receipt,
         ws_automation_validate,
+        ws_automation_current,
         ws_preferences_update,
         ws_config_update,
         ws_options_update,

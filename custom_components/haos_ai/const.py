@@ -19,6 +19,13 @@ CONF_CONTEXT_CONFIRMATION: Final = "context_confirmation"
 CONF_NOTIFY_NEW_SUGGESTIONS: Final = "notify_new_suggestions"
 CONF_SCHEDULE_WEEKDAY: Final = "schedule_weekday"
 
+# Optional second provider profile used only for scans.
+CONF_SCAN_PROFILE_ENABLED: Final = "scan_profile_enabled"
+CONF_SCAN_PROVIDER: Final = "scan_provider"
+CONF_SCAN_MODEL: Final = "scan_model"
+CONF_SCAN_BASE_URL: Final = "scan_base_url"
+CONF_SCAN_API_KEY: Final = "scan_api_key"
+
 PROVIDER_OPENAI: Final = "openai"
 PROVIDER_ANTHROPIC: Final = "anthropic"
 PROVIDER_DEEPSEEK: Final = "deepseek"
@@ -87,7 +94,23 @@ STORAGE_VERSION: Final = 1
 STORAGE_KEY: Final = DOMAIN
 MAX_SUGGESTIONS: Final = 200
 MAX_CHAT_MESSAGES: Final = 100
+MAX_CHAT_THREADS: Final = 50
+MAX_APPLIED_CHANGES: Final = 200
 RETENTION_DAYS: Final = 90
+
+# Applied changes are only re-checked once they have had time to settle.
+OUTCOME_CHECK_DAYS: Final = 3
+APPLIED_OUTCOMES: Final = (
+    "pending",
+    "kept",
+    "disabled",
+    "reverted",
+    "unknown",
+)
+
+# Home Assistant writes UI automations to this file; the backend apply path
+# edits the same file so the two stay consistent.
+AUTOMATION_CONFIG_FILE: Final = "automations.yaml"
 
 EVENT_TYPE: Final = f"{DOMAIN}/event"
 DATA_RUNTIME: Final = "runtime"
@@ -107,3 +130,8 @@ DEFAULT_CHANGE_PERMISSIONS: Final = {
     "remove_entities": False,
     "remove_devices": False,
 }
+
+# 0 disables the cap. The warning threshold is a fraction of the budget.
+DEFAULT_MONTHLY_TOKEN_BUDGET: Final = 0
+MAX_MONTHLY_TOKEN_BUDGET: Final = 100_000_000
+BUDGET_WARNING_RATIO: Final = 0.8

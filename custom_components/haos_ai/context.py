@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from datetime import timedelta
 from typing import Any
 
@@ -52,6 +53,40 @@ STATE_DOMAINS_WITHOUT_ROUTINES = frozenset(
 SENSITIVE_DOMAINS = frozenset({"alarm_control_panel", "camera"})
 
 
+def iter_device_entries(registry: dr.DeviceRegistry) -> list[Any]:
+    """Return every device entry, across Home Assistant registry versions.
+
+    Home Assistant 2026.8 deprecated using ``registry.devices`` as a mapping
+    and 2026.9 added ``async_get_devices``; older releases still expose a plain
+    mapping whose iteration yields ids rather than entries. Iterating the
+    registry is the supported path on the new API, and imperative iteration is
+    only a warning for custom integrations today but is removed in 2027.9.
+    """
+    get_devices = getattr(registry, "async_get_devices", None)
+    if get_devices is not None:
+        return list(get_devices())
+    devices = registry.devices
+    if isinstance(devices, Mapping):
+        return list(devices.values())
+    return list(devices)
+
+
+def device_config_entry_ids(device: Any) -> list[str]:
+    """Return the config entry ids a device is linked to.
+
+    A device was restricted to a single config entry in Home Assistant 2026.8,
+    which turned ``DeviceEntry.config_entries`` into a deprecated property.
+    Prefer ``config_entry_id`` and only read the legacy set when the newer
+    attribute does not exist at all, so the deprecated property is never
+    touched on a release that warns about it.
+    """
+    if hasattr(device, "config_entry_id"):
+        entry_id = device.config_entry_id
+        return [str(entry_id)] if entry_id else []
+    legacy = getattr(device, "config_entries", None) or ()
+    return [str(entry) for entry in legacy]
+
+
 class ContextEngine:
     """Build bounded, read-only context from live Home Assistant state."""
 
@@ -66,6 +101,64 @@ class ContextEngine:
         self.history_days = max(1, min(history_days, 90))
         self.include_exact_location = include_exact_location
         self.outbound_trace: list[dict[str, Any]] = []
+        self.exclusions: set[str] = set()
+
+    def set_exclusions(self, preferences: dict[str, Any]) -> set[str]:
+        """Resolve every ignore scope into concrete identifiers to withhold.
+
+        Entity, domain, area, and label ignores are enforced here rather than
+        asked of the model, so an ignored thing is never transmitted at all.
+        """
+        entities = {
+            str(value)
+            for value in preferences.get("ignored_entities", [])
+            if str(value)
+        }
+        domains = {
+            str(value).casefold()
+            for value in preferences.get("ignored_domains", [])
+            if str(value)
+        }
+        areas = {
+            str(value) for value in preferences.get("ignored_areas", []) if str(value)
+        }
+        labels = {
+            str(value) for value in preferences.get("ignored_labels", []) if str(value)
+        }
+
+        excluded: set[str] = set(entities) | set(areas) | set(labels)
+        registry = er.async_get(self.hass)
+        device_registry = dr.async_get(self.hass)
+
+        if areas or labels:
+            for device in iter_device_entries(device_registry):
+                if device.area_id in areas or (set(device.labels) & labels):
+                    excluded.add(device.id)
+
+        for entry in registry.entities.values():
+            if entry.domain.casefold() in domains:
+                excluded.add(entry.entity_id)
+                continue
+            if areas and self._entity_area_id(entry) in areas:
+                excluded.add(entry.entity_id)
+                continue
+            if labels and (set(entry.labels) & labels):
+                excluded.add(entry.entity_id)
+                continue
+            if entry.device_id and entry.device_id in excluded:
+                excluded.add(entry.entity_id)
+
+        if domains:
+            # States without a registry entry still belong to a domain.
+            for state in self.hass.states.async_all():
+                if state.entity_id.split(".", 1)[0].casefold() in domains:
+                    excluded.add(state.entity_id)
+
+        self.exclusions = excluded
+        return excluded
+
+    def _is_excluded(self, identifier: str | None) -> bool:
+        return bool(identifier) and identifier in self.exclusions
 
     @staticmethod
     def tool_specs() -> list[ToolSpec]:
@@ -114,14 +207,24 @@ class ContextEngine:
             ToolSpec(
                 "get_automations",
                 (
-                    "Get sanitized existing automation configurations, "
-                    "optionally filtered."
+                    "Get existing automation configurations, optionally "
+                    "filtered by a substring of the automation name or entity "
+                    "id. Omit query, or pass an empty string or '*', to list "
+                    "every automation."
                 ),
                 {
                     **object_schema,
-                    "properties": {"query": {"type": "string"}},
-                    "required": ["query"],
+                    "properties": {"query": {"type": ["string", "null"]}},
+                    "required": [],
                 },
+            ),
+            ToolSpec(
+                "get_blueprints",
+                (
+                    "Get installed automation and script blueprints with their "
+                    "inputs, so a proposal can reuse one instead of raw YAML."
+                ),
+                {**object_schema, "properties": {}, "required": []},
             ),
             ToolSpec(
                 "get_integrations",
@@ -147,10 +250,7 @@ class ContextEngine:
         self, name: str, arguments: dict[str, Any], preferences: dict[str, Any]
     ) -> dict[str, Any]:
         """Execute a known read-only tool and keep a local outbound trace."""
-        ignored = {
-            str(entity_id)
-            for entity_id in preferences.get("ignored_entities", [])
-        }
+        ignored = self.set_exclusions(preferences)
         requested_entity = str(arguments.get("entity_id", ""))
         if requested_entity in ignored and name in {
             "get_entity_detail",
@@ -179,7 +279,9 @@ class ContextEngine:
                 ),
             )
         elif name == "get_automations":
-            raw = self.automations(str(arguments.get("query", "")))
+            raw = self.automations(str(arguments.get("query") or ""))
+        elif name == "get_blueprints":
+            raw = await self.async_blueprints()
         elif name == "get_integrations":
             raw = self.integrations()
         elif name == "get_apps":
@@ -219,7 +321,7 @@ class ContextEngine:
             "counts": {
                 "states": len(self.hass.states.async_all()),
                 "entities": len(entity_registry.entities),
-                "devices": len(device_registry.devices),
+                "devices": len(iter_device_entries(device_registry)),
                 "areas": len(area_registry.areas),
                 "floors": len(floor_registry.floors),
                 "labels": len(label_registry.labels),
@@ -233,6 +335,7 @@ class ContextEngine:
                     "aliases": list(area.aliases),
                 }
                 for area in area_registry.areas.values()
+                if not self._is_excluded(area.id)
             ],
             "floors": [
                 {"id": floor.floor_id, "name": floor.name, "level": floor.level}
@@ -263,6 +366,10 @@ class ContextEngine:
             state_domain = state.entity_id.split(".", 1)[0]
             if domain and state_domain != domain:
                 continue
+            # Exclude before the result cap so an ignored area cannot fill
+            # the page and starve the model of usable results.
+            if self._is_excluded(state.entity_id):
+                continue
             entry = registry.async_get(state.entity_id)
             entity_area = self._entity_area_id(entry) if entry else None
             if area_id and entity_area != area_id:
@@ -292,6 +399,8 @@ class ContextEngine:
 
     def entity_detail(self, entity_id: str) -> dict[str, Any]:
         """Return one live entity with its registry relationships."""
+        if self._is_excluded(entity_id):
+            return {"error": "entity_excluded_by_user", "entity_id": "[IGNORED]"}
         state = self.hass.states.get(entity_id)
         entry = er.async_get(self.hass).async_get(entity_id)
         if state is None and entry is None:
@@ -336,7 +445,7 @@ class ContextEngine:
                     "manufacturer": device.manufacturer,
                     "model": device.model,
                     "area_id": device.area_id,
-                    "config_entries": list(device.config_entries),
+                    "config_entries": device_config_entry_ids(device),
                 }
                 if device
                 else None
@@ -404,16 +513,85 @@ class ContextEngine:
                 )
         return {"available": True, "apps": rows}
 
+    async def async_blueprints(self) -> dict[str, Any]:
+        """Return installed blueprints and their declared inputs.
+
+        A blueprint instance is usually a better proposal than hand-written
+        YAML, so the model needs to know which ones exist.
+        """
+        try:
+            from homeassistant.components.blueprint import DOMAIN as BLUEPRINT_DOMAIN
+
+            domain_blueprints = self.hass.data.get(BLUEPRINT_DOMAIN) or {}
+        except Exception as err:
+            _LOGGER.debug("Blueprint context is unavailable", exc_info=True)
+            return {"available": False, "reason": type(err).__name__, "blueprints": []}
+
+        rows: list[dict[str, Any]] = []
+        for domain, store in domain_blueprints.items():
+            try:
+                blueprints = await store.async_get_blueprints()
+            except Exception:
+                _LOGGER.debug(
+                    "Could not list %s blueprints", domain, exc_info=True
+                )
+                continue
+            for path, blueprint in (blueprints or {}).items():
+                metadata = getattr(blueprint, "metadata", None)
+                if not isinstance(metadata, dict):
+                    # Unparsable blueprints surface as exceptions in this map.
+                    continue
+                raw_inputs = metadata.get("input") or {}
+                inputs: list[dict[str, Any]] = []
+                if isinstance(raw_inputs, dict):
+                    for input_name, spec in list(raw_inputs.items())[:30]:
+                        detail = spec if isinstance(spec, dict) else {}
+                        inputs.append(
+                            {
+                                "name": str(input_name),
+                                "description": str(
+                                    detail.get("description", "")
+                                )[:300],
+                                "required": "default" not in detail,
+                            }
+                        )
+                rows.append(
+                    {
+                        "domain": str(domain),
+                        "path": str(path),
+                        "name": str(metadata.get("name", path)),
+                        "description": str(metadata.get("description", ""))[:500],
+                        "inputs": inputs,
+                    }
+                )
+                if len(rows) >= 60:
+                    break
+        return {
+            "available": True,
+            "blueprints": rows,
+            "usage_hint": (
+                "Propose a blueprint automation as "
+                "{'use_blueprint': {'path': <path>, 'input': {...}}} using the "
+                "exact path and input names listed here."
+            ),
+        }
+
     def automations(self, query: str = "") -> dict[str, Any]:
         """Return existing raw automation config from loaded entities."""
         component = self.hass.data.get(AUTOMATION_COMPONENT)
         if component is None:
             return {"automations": [], "available": False}
+        # A model that wants every automation often sends a wildcard or a
+        # filler word instead of omitting the filter. Treat those as "no
+        # filter" rather than as a literal substring that can never match,
+        # which used to make this tool silently report an empty home.
         query = query.casefold().strip()
+        if query in {"", "*", "all"}:
+            query = ""
         rows: list[dict[str, Any]] = []
         for automation in component.entities:
             raw = automation.raw_config
-            if not raw:
+            if not raw or self._is_excluded(automation.entity_id):
                 continue
             name = automation.name or automation.entity_id
             if query and query not in f"{name} {automation.entity_id}".casefold():
@@ -437,6 +615,8 @@ class ContextEngine:
         self, entity_id: str, days: int
     ) -> dict[str, Any]:
         """Read and summarize recorder data off the event loop."""
+        if self._is_excluded(entity_id):
+            return {"error": "entity_excluded_by_user", "entity_id": "[IGNORED]"}
         if not self.hass.states.get(entity_id):
             return {"error": "entity_not_found", "entity_id": entity_id}
         try:
@@ -478,7 +658,11 @@ class ContextEngine:
         """Generate deterministic local candidates before spending tokens."""
         registry = er.async_get(self.hass)
         device_registry = dr.async_get(self.hass)
-        states = {state.entity_id: state for state in self.hass.states.async_all()}
+        states = {
+            state.entity_id: state
+            for state in self.hass.states.async_all()
+            if not self._is_excluded(state.entity_id)
+        }
         unavailable = [
             entity_id
             for entity_id, state in states.items()
@@ -489,6 +673,8 @@ class ContextEngine:
         orphaned: list[dict[str, str]] = []
         entities_by_device: dict[str, list[str]] = {}
         for entry in registry.entities.values():
+            if self._is_excluded(entry.entity_id):
+                continue
             if entry.device_id:
                 entities_by_device.setdefault(entry.device_id, []).append(
                     entry.entity_id
@@ -510,7 +696,9 @@ class ContextEngine:
                 unassigned.append(entry.entity_id)
         stale_devices: list[dict[str, Any]] = []
         disabled_entity_ids = set(disabled)
-        for device in device_registry.devices.values():
+        for device in iter_device_entries(device_registry):
+            if self._is_excluded(device.id):
+                continue
             entity_ids = entities_by_device.get(device.id, [])
             if (
                 not entity_ids
@@ -518,11 +706,7 @@ class ContextEngine:
                 or any(entity_id in disabled_entity_ids for entity_id in entity_ids)
             ):
                 continue
-            config_entry_ids = list(getattr(device, "config_entries", ()) or ())
-            if not config_entry_ids and (
-                config_entry_id := getattr(device, "config_entry_id", None)
-            ):
-                config_entry_ids = [config_entry_id]
+            config_entry_ids = device_config_entry_ids(device)
             removable_entry_id = next(
                 (
                     entry_id
@@ -582,15 +766,18 @@ class ContextEngine:
         candidates = self.hygiene_candidates()
         integrations = self.integrations()
         apps = await self.async_apps()
+        blueprints = await self.async_blueprints()
         payload = {
             "home_summary": home,
             "local_candidates": candidates,
             "integrations": integrations,
             "apps": apps,
+            "blueprints": blueprints,
             "privacy_defaults": {
                 "history_days": self.history_days,
                 "exact_location": self.include_exact_location,
                 "camera_media": False,
+                "excluded_identifiers": len(self.exclusions),
             },
         }
         cleaned, redactions = sanitize(

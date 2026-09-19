@@ -20,7 +20,15 @@ The panel provides:
 - recurring-evidence counters and structured dismissal feedback;
 - conservative through `I WANT AUTOMATION HELL` recommendation styles;
 - granular, default-off approval capabilities for creating/updating validated
-  automations and removing confirmed orphaned registry entries;
+  automations and removing confirmed orphaned registry entries, all enforced by
+  the integration rather than the browser;
+- a line diff between the stored and proposed automation before an update;
+- an applied-change ledger that re-checks outcomes and feeds them back into
+  later scans;
+- blueprint-aware proposals that reuse an installed blueprint where one fits;
+- deterministic entity, domain, area, and label exclusions;
+- an optional second provider profile so scans can use a cheaper model;
+- an optional monthly token budget that pauses requests when spent;
 - local preference, chat, scan, and privacy-receipt storage;
 - manual, daily, or weekly scans with optional notifications; and
 - exact-location redaction by default.
@@ -114,7 +122,13 @@ Automation suggestions include an editable draft and the native validation
 result. You can validate after editing, download the YAML, copy it into Home
 Assistant, or send the current draft into a new advisor conversation for
 revision. A YAML block returned by that conversation can be brought back into
-the draft and validated again.
+the draft and validated again. Where an installed blueprint fits the idea, the
+advisor proposes a blueprint instance instead of hand-written YAML.
+
+When the matching approval capability is enabled, an approval button appears.
+Approving an update first shows a line diff against the automation currently
+stored in Home Assistant. The integration then re-checks the permission,
+revalidates the config, and confirms the target still exists before writing.
 
 You can also invoke the `haos_ai.scan` action from an automation. Configuring a
 daily or weekly schedule is treated as standing consent for scheduled scans.
@@ -136,6 +150,14 @@ the conversation agent. It uses the same bounded context tools and read-only
 rules as panel chat. It can explain and advise, but it cannot call services or
 control devices.
 
+The Assist agent requires an administrator, exactly like the panel, because it
+exposes the same setup internals. Requests from non-admin accounts are refused.
+So are requests that carry no user at all — a voice satellite or a
+`conversation.process` call made without a user context cannot be shown to come
+from an administrator, so HAOS AI does not answer it. Each administrator's
+Assist history is kept in its own thread and is never shared with another
+account or with a panel conversation.
+
 ### Review activity and privacy
 
 Open **Activity** to inspect scan history and the local receipt for every scan
@@ -143,14 +165,30 @@ or conversation request. Receipts show the provider, model, token usage,
 redactions, context categories, and the exact sanitized payload retained for
 the request.
 
+Activity also shows this month's token usage against the configured budget and
+an applied-change ledger. Three days after you approve a change, HAOS AI
+re-checks it and records whether it was kept, turned off, or reverted. Those
+outcomes are sent to later scans so the advisor stops re-proposing ideas that
+did not survive.
+
 ### Change settings
 
 Open the HAOS AI panel and select **Settings** to change the provider, model,
 key, endpoint, history range, exact-location permission, scan schedule, focus
 areas, scan depth, automation complexity, approval capabilities, quiet hours,
-and ignored entities.
+the monthly token budget, and every exclusion scope.
 Ignored entities can be searched by friendly name or ID, selected from live
-results, or pasted as comma-, space-, or line-separated entity IDs.
+results, or pasted as comma-, space-, or line-separated entity IDs. Whole
+domains, areas, and labels can be excluded the same way; each is withheld
+locally before any request is built.
+
+Enable **Use a separate provider for scans** to run long, tool-heavy scans on a
+cheaper model while chat stays on the primary connection. The scan profile is
+validated with its own small connection test.
+
+Set a **monthly token budget** to cap provider spend. HAOS AI warns at 80% and
+refuses new scans and chat turns once the calendar month's budget is spent.
+Leave it at `0` for no cap.
 
 Provider credentials remain in the Home Assistant config entry. The stored API
 key is never returned to the browser; leaving the field empty keeps the current
@@ -170,12 +208,16 @@ Important boundaries:
 - camera content is never read;
 - alarm and camera attributes use a strict allowlist;
 - provider responses have no service-call or configuration-write tool;
-- all change capabilities are off by default and every individual change needs
-  an administrator's explicit approval in the panel;
+- all change capabilities are off by default, and every individual change needs
+  an administrator's explicit approval plus a server-side permission check,
+  revalidation, and live stale-target check before it is applied;
+- ignored entities, domains, areas, and labels are withheld locally before a
+  request is built, not merely requested of the model;
 - payload strings and collections are bounded;
 - scans require a visible manual preflight unless a schedule was explicitly
   enabled;
-- local data is stored in `.storage/haos_ai` and pruned after 90 days; and
+- local data is stored in `.storage/haos_ai` and pruned after 90 days,
+  including chat threads; and
 - the panel and WebSocket commands require an administrator.
 
 API keys are held in the Home Assistant config entry and are intentionally
@@ -232,8 +274,9 @@ SHA-256 checksum, and publishes both files to a GitHub release.
 
 ## Current limitations
 
-- one active provider profile;
-- English UI only;
+- one chat profile, plus an optional second profile used only for scans;
+- the panel follows Home Assistant's language when a translation exists and
+  otherwise falls back to English;
 - automation deletion is not offered; creation and updates require validated
   YAML plus a separate approval step;
 - no semantic/vector memory; local history is deterministic aggregation; and

@@ -24,6 +24,11 @@ from .const import (
     CONF_MODEL,
     CONF_NOTIFY_NEW_SUGGESTIONS,
     CONF_PROVIDER,
+    CONF_SCAN_API_KEY,
+    CONF_SCAN_BASE_URL,
+    CONF_SCAN_MODEL,
+    CONF_SCAN_PROFILE_ENABLED,
+    CONF_SCAN_PROVIDER,
     CONF_SCHEDULE,
     CONF_SCHEDULE_TIME,
     CONF_SCHEDULE_WEEKDAY,
@@ -72,7 +77,10 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
                 "name": PANEL_COMPONENT,
                 "module_url": PANEL_MODULE_URL,
                 "embed_iframe": False,
-                "trust_external_script": False,
+                # The frontend reads `trust_external`; `trust_external_script`
+                # is only the YAML key accepted by panel_custom and is ignored
+                # here. Keep this in sync with panel_custom.async_register_panel.
+                "trust_external": False,
             }
         },
         require_admin=True,
@@ -176,15 +184,42 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         history_days=int(options.get(CONF_HISTORY_DAYS, DEFAULT_HISTORY_DAYS)),
         include_exact_location=bool(options.get(CONF_INCLUDE_EXACT_LOCATION, False)),
     )
+    session = async_get_clientsession(hass)
     provider = create_provider(
         str(entry.data[CONF_PROVIDER]),
-        async_get_clientsession(hass),
+        session,
         str(entry.data["api_key"]),
         str(entry.data[CONF_BASE_URL]),
         str(entry.data[CONF_MODEL]),
     )
+    scan_provider = None
+    scan_provider_name = None
+    if entry.data.get(CONF_SCAN_PROFILE_ENABLED):
+        try:
+            scan_provider_name = str(entry.data[CONF_SCAN_PROVIDER])
+            scan_provider = create_provider(
+                scan_provider_name,
+                session,
+                str(entry.data[CONF_SCAN_API_KEY]),
+                str(entry.data[CONF_SCAN_BASE_URL]),
+                str(entry.data[CONF_SCAN_MODEL]),
+            )
+        except (KeyError, ValueError):
+            # A broken scan profile must not take the whole integration down;
+            # scans fall back to the primary profile.
+            _LOGGER.warning(
+                "Ignoring an invalid HAOS AI scan profile; using the main provider"
+            )
+            scan_provider = None
+            scan_provider_name = None
     advisor = Advisor(
-        hass, provider, store, context, str(entry.data[CONF_PROVIDER])
+        hass,
+        provider,
+        store,
+        context,
+        str(entry.data[CONF_PROVIDER]),
+        scan_provider=scan_provider,
+        scan_provider_name=scan_provider_name,
     )
     runtime = HaosAIRuntime(
         entry=entry,

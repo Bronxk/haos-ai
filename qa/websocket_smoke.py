@@ -35,6 +35,29 @@ class FakeStore:
         """Return no local chat threads."""
         return []
 
+    @staticmethod
+    def list_applied_changes() -> list[dict[str, Any]]:
+        """Return an empty applied-change ledger."""
+        return []
+
+
+class FakeAdvisor:
+    """Minimal advisor surface used by the overview command."""
+
+    uses_scan_profile = False
+
+    @staticmethod
+    def budget_status() -> dict[str, Any]:
+        """Return an uncapped token budget."""
+        return {
+            "total_tokens": 0,
+            "budget": 0,
+            "remaining": None,
+            "ratio": 0.0,
+            "exceeded": False,
+            "warning": False,
+        }
+
 
 class FakeConnection:
     """Capture the WebSocket command result."""
@@ -62,7 +85,7 @@ async def main() -> None:
             },
             options={},
         ),
-        advisor=None,
+        advisor=FakeAdvisor(),
         store=FakeStore(),
     )
     connection = FakeConnection()

@@ -331,18 +331,99 @@ describe("haos-ai-panel", () => {
       .find((button) => button.textContent?.includes("Review & create")) as HTMLElement;
     review.click();
     await panel.updateComplete;
-    expect(callApi).not.toHaveBeenCalled();
+    const applyCalls = () =>
+      sendMessagePromise.mock.calls.filter(
+        ([message]) => message.type === "haos_ai/change/apply",
+      );
+    expect(applyCalls()).toHaveLength(0);
 
     const approve = [...(panel.shadowRoot?.querySelectorAll("ha-adaptive-dialog ha-button") ?? [])]
       .find((button) => button.textContent?.includes("Approve & create")) as HTMLElement;
     approve.click();
     await new Promise((resolve) => window.setTimeout(resolve, 0));
 
-    expect(callApi).toHaveBeenCalledWith(
-      "POST",
-      expect.stringMatching(/^config\/automation\/config\/[a-f0-9]{32}$/),
-      expect.objectContaining({ alias: "Hall light" }),
+    // The write must go through the backend gate, never straight to the core
+    // automation config API from the browser.
+    expect(callApi).not.toHaveBeenCalled();
+    expect(applyCalls()).toHaveLength(1);
+    expect(applyCalls()[0][0]).toEqual({
+      type: "haos_ai/change/apply",
+      suggestion_id: "suggestion-approval",
+      confirm: true,
+      operation: "create_automation",
+      config: expect.objectContaining({ alias: "Hall light" }),
+    });
+  });
+
+  it("diffs the stored automation before approving an update", async () => {
+    const suggestion = {
+      id: "suggestion-update",
+      title: "Tighten hall light",
+      summary: "Update the hall light routine.",
+      rationale: "The trigger is too broad.",
+      kind: "automation",
+      status: "new",
+      confidence: 0.9,
+      impact: "medium",
+      created_at: new Date().toISOString(),
+      evidence: [{ source_type: "automation", source_id: "automation.hall", observation: "Broad trigger" }],
+      automation: {
+        explanation: "Narrows the trigger.",
+        yaml: "alias: Hall light\nmode: single\n",
+        validation: { valid: true, errors: {} },
+        target_id: "hall-light-id",
+      },
+    };
+    const overview = {
+      version: "1.0.3",
+      provider: "openai",
+      model: "gpt-5.6",
+      base_url: "https://api.openai.com/v1",
+      provider_options: [{ id: "openai", label: "OpenAI", default_model: "gpt-5.6", default_base_url: "https://api.openai.com/v1" }],
+      goal_presets: [],
+      options: { schedule: "manual", history_days: 30 },
+      suggestions: [suggestion],
+      counts: { new: 1, saved: 0, dismissed: 0 },
+      scan_runs: [],
+      preferences: {
+        goals: [], ignored_categories: [], ignored_entities: [], notes: [], quiet_hours: null,
+        change_permissions: {
+          create_automations: false,
+          update_automations: true,
+          remove_entities: false,
+          remove_devices: false,
+        },
+      },
+    };
+    const sendMessagePromise = vi.fn(
+      async (message: Record<string, unknown>): Promise<any> =>
+        message.type === "haos_ai/automation/current"
+          ? { found: true, yaml: "alias: Hall light\nmode: restart\n" }
+          : overview,
     );
+    const panel = document.createElement("haos-ai-panel");
+    document.body.append(panel);
+    panel.hass = { connection: { sendMessagePromise } };
+    await panel.updateComplete;
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    await panel.updateComplete;
+
+    panel.shadowRoot?.querySelector<HTMLButtonElement>(".suggestion-row")?.click();
+    await panel.updateComplete;
+    const review = [...(panel.shadowRoot?.querySelectorAll("ha-button") ?? [])]
+      .find((button) => button.textContent?.includes("Review & update")) as HTMLElement;
+    review.click();
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    await panel.updateComplete;
+
+    expect(sendMessagePromise).toHaveBeenCalledWith({
+      type: "haos_ai/automation/current",
+      automation_id: "hall-light-id",
+    });
+    const removed = panel.shadowRoot?.querySelector(".diff-line.removed");
+    const added = panel.shadowRoot?.querySelector(".diff-line.added");
+    expect(removed?.textContent).toContain("mode: restart");
+    expect(added?.textContent).toContain("mode: single");
   });
 
   it("clears only the currently selected inbox view after confirmation", async () => {
@@ -380,5 +461,50 @@ describe("haos-ai-panel", () => {
       type: "haos_ai/suggestions/clear",
       status: "new",
     });
+  });
+
+  it("renders the new-conversation control with a slotted icon", async () => {
+    // `ha-icon-button` has no `icon` property, so the glyph has to be
+    // slotted. Passing icon="mdi:plus" left the control blank, which is why
+    // the new-conversation button could not be found in the panel.
+    const overview = {
+      version: "1.0.3",
+      provider: "openai",
+      model: "gpt-5.6",
+      base_url: "https://api.openai.com/v1",
+      provider_options: [{ id: "openai", label: "OpenAI", default_model: "gpt-5.6", default_base_url: "https://api.openai.com/v1" }],
+      goal_presets: [],
+      options: { schedule: "manual" },
+      scan_runs: [],
+      threads: [],
+      suggestions: [],
+      counts: { new: 0, saved: 0, dismissed: 0 },
+      preferences: { goals: [], ignored_categories: [], ignored_entities: [], notes: [], quiet_hours: null },
+    };
+    const sendMessagePromise = vi.fn().mockImplementation(({ type }) => {
+      if (type === "haos_ai/chat/threads") return Promise.resolve([]);
+      if (type === "haos_ai/chat/thread") return Promise.resolve([]);
+      return Promise.resolve(overview);
+    });
+    const panel = document.createElement("haos-ai-panel");
+    document.body.append(panel);
+    panel.hass = { connection: { sendMessagePromise } };
+    await panel.updateComplete;
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    await panel.updateComplete;
+
+    const chatTab = [
+      ...(panel.shadowRoot?.querySelectorAll(".tabs button") ?? []),
+    ].find((button) => button.textContent?.includes("Chat")) as HTMLElement;
+    chatTab.click();
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    await panel.updateComplete;
+
+    const button = panel.shadowRoot?.querySelector(
+      '.thread-heading ha-icon-button[label="New conversation"]',
+    );
+    expect(button).not.toBeNull();
+    expect(button?.hasAttribute("icon")).toBe(false);
+    expect(button?.querySelector('ha-icon[icon="mdi:plus"]')).not.toBeNull();
   });
 });

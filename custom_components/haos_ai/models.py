@@ -206,6 +206,25 @@ class ChatMessage:
 
 
 @dataclass(slots=True)
+class AppliedChange:
+    """One approved change, kept so its later outcome can be observed."""
+
+    kind: str
+    target_id: str
+    label: str
+    suggestion_id: str | None = None
+    suggestion_title: str = ""
+    id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    applied_at: str = field(default_factory=utcnow_iso)
+    outcome: str = "pending"
+    outcome_detail: str = ""
+    checked_at: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
 class PrivacyReceipt:
     """Audit receipt for context sent to a provider."""
 
