@@ -61,6 +61,12 @@ async def main() -> None:
         initialized = await bootstrap.async_from_config_dict({"haos_ai": {}}, hass)
         assert initialized is hass
         assert hass.services.has_service("haos_ai", "scan")
+        # The sidebar panel is registered through panel_custom, so this also
+        # proves the panel config reaches the frontend.
+        panels = hass.data.get("frontend_panels", {})
+        assert "haos-ai" in panels, sorted(panels)
+        assert panels["haos-ai"].component_name == "custom"
+        assert panels["haos-ai"].require_admin is True
         await hass.async_stop(force=True)
 
     print(f"Release archive smoke test OK ({os.path.basename(archive)})")

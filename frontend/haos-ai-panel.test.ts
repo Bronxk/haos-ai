@@ -375,7 +375,7 @@ describe("haos-ai-panel", () => {
       },
     };
     const overview = {
-      version: "1.0.3",
+      version: "1.0.4",
       provider: "openai",
       model: "gpt-5.6",
       base_url: "https://api.openai.com/v1",
@@ -468,7 +468,7 @@ describe("haos-ai-panel", () => {
     // slotted. Passing icon="mdi:plus" left the control blank, which is why
     // the new-conversation button could not be found in the panel.
     const overview = {
-      version: "1.0.3",
+      version: "1.0.4",
       provider: "openai",
       model: "gpt-5.6",
       base_url: "https://api.openai.com/v1",

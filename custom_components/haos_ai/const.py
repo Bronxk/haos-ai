@@ -5,7 +5,7 @@ from typing import Final
 DOMAIN: Final = "haos_ai"
 NAME: Final = "HAOS AI"
 MIN_HA_VERSION: Final = "2026.7.0"
-INTEGRATION_VERSION: Final = "1.0.3"
+INTEGRATION_VERSION: Final = "1.0.4"
 
 CONF_PROVIDER: Final = "provider"
 CONF_MODEL: Final = "model"

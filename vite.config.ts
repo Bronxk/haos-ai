@@ -1,4 +1,6 @@
-import { defineConfig } from "vite";
+// Vite 8 no longer types the Vitest `test` block, so the Vitest re-export of
+// defineConfig is the one that knows about it.
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   build: {

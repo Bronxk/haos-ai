@@ -59,7 +59,13 @@
         connectedCallback() {
           if (this.shadowRoot) return;
           const root = this.attachShadow({ mode: "open" });
-          root.innerHTML = `<style>:host{display:inline-grid;width:40px;height:40px}button{border:0;border-radius:50%;color:var(--secondary-text-color,#727272);background:transparent;font-size:20px;cursor:pointer}button:hover{background:var(--secondary-background-color,#eee)}</style><button type="button" aria-label="${this.getAttribute("label") ?? "Action"}">⋯</button>`;
+          root.innerHTML = `<style>:host{display:inline-grid;place-items:center;width:40px;height:40px}button{border:0;border-radius:50%;display:grid;place-items:center;width:40px;height:40px;color:var(--secondary-text-color,#727272);background:transparent;font-size:20px;cursor:pointer}button:hover{background:var(--secondary-background-color,#eee)}button.empty::before{content:"⋯"}</style><button type="button" aria-label="${this.getAttribute("label") ?? "Action"}"><slot></slot></button>`;
+          // Mirror the real component: it renders a slotted <ha-icon> and only
+          // falls back to plain content when nothing was slotted in. Modelling
+          // that is what makes the icon-button assertion meaningful.
+          if (!this.childElementCount) {
+            root.querySelector("button").classList.add("empty");
+          }
         }
       }
       class QaIcon extends HTMLElement {
@@ -91,7 +97,7 @@
       await import("../custom_components/haos_ai/frontend/haos-ai-panel.js");
 
       const overview = {
-        version: "1.0.3",
+        version: "1.0.4",
         provider: "openai",
         model: "gpt-5.6",
         base_url: "https://api.openai.com/v1",

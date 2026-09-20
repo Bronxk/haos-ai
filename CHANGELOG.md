@@ -1,7 +1,28 @@
 # Changelog
 
-## Unreleased
+## 1.0.4
 
+- The panel is now registered through `panel_custom.async_register_panel`
+  instead of a hand-built config dict. That helper became a coroutine in Home
+  Assistant, so the previous call never actually registered the panel; the
+  release smoke test now asserts the panel reaches the frontend.
+- Added brand logo assets (`logo.png`, `logo@2x.png` and the dark variants) and
+  removed the redundant top-level `brand/` directory. Home Assistant reads
+  `custom_components/<domain>/brand/` for custom integrations.
+- Added a browser check to CI: the committed panel bundle is loaded in headless
+  Chromium at six widths in light and dark themes, every rendered icon button
+  must carry a visible slotted icon, and no element may overflow or be clipped.
+- Closed the remaining panel findings: errors render inside the scrolling pane
+  instead of above it, an action dialog stays open with its buttons disabled
+  until the write settles, a pruned selection no longer strands mobile users on
+  an empty list, a chat YAML block can always be copied, and the ignored-entity
+  picker has a keyboard cursor with proper listbox wiring.
+- Moved the frontend toolchain to the current majors: TypeScript 7, Vitest 5,
+  Vite 8, jsdom 30, `@types/node` 26, Playwright 1.63 and `yaml` 2.9. The
+  Vitest config now imports `defineConfig` from `vitest/config`, because Vite 8
+  no longer types the `test` block.
+- Updated the pinned GitHub Actions to `actions/checkout@v7`,
+  `actions/setup-python@v7`, `actions/setup-node@v7` and the current hassfest.
 - Fixed two hassfest failures the unreleased work had introduced: `blueprint`
   is now declared in `after_dependencies`, and the panel strings moved out of a
   bespoke `panel` translation section — which hassfest rejects — into the

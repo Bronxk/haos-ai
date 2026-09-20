@@ -448,6 +448,12 @@ export class HaosAiPanel extends LitElement {
   @state() private selectedId?: string;
   @state() private loading = true;
   @state() private busy = false;
+
+  /** True while an action dialog is waiting for its backend call to settle. */
+  @state() private dialogPending = false;
+
+  /** Keyboard cursor for the ignored-entity picker, -1 when none is active. */
+  @state() private entityHighlight = -1;
   @state() private error = "";
   @state() private preview?: ContextPreview;
   @state() private progress?: ProgressEvent;
@@ -601,11 +607,20 @@ export class HaosAiPanel extends LitElement {
       this.threads = Array.isArray(overview.threads)
         ? overview.threads
         : [];
-      if (
-        this.selectedId &&
-        !overview.suggestions.some((item) => item.id === this.selectedId)
-      ) {
+      const prunedSelection =
+        !!this.selectedId &&
+        !overview.suggestions.some((item) => item.id === this.selectedId);
+      if (prunedSelection) {
         this.selectedId = undefined;
+        // The detail pane just disappeared, and on mobile that leaves an empty
+        // view when the active filter no longer matches anything, so fall back
+        // to the full list rather than stranding the user.
+        if (
+          this.filter !== "all" &&
+          !overview.suggestions.some((item) => item.status === this.filter)
+        ) {
+          this.filter = "all";
+        }
       }
       this.error = "";
     } catch (error) {
@@ -831,7 +846,9 @@ export class HaosAiPanel extends LitElement {
   }
 
   private async deleteThread(): Promise<void> {
-    this.dialog = null;
+    // Keep the dialog open, with its buttons disabled, until the call settles:
+    // closing first left the user staring at an unchanged panel.
+    this.dialogPending = true;
     try {
       await this.call("haos_ai/chat/thread/delete", {
         thread_id: this.threadId,
@@ -840,6 +857,9 @@ export class HaosAiPanel extends LitElement {
       await this.loadThreads();
     } catch (error) {
       this.error = this.describeError(error);
+    } finally {
+      this.dialogPending = false;
+      this.dialog = null;
     }
   }
 
@@ -1102,7 +1122,8 @@ export class HaosAiPanel extends LitElement {
     if (!change || !this.canApply(change) || !this.hass) return;
     const isAutomation =
       change.kind === "create_automation" || change.kind === "update_automation";
-    this.dialog = null;
+    // The dialog stays up, with its buttons disabled, until the write settles.
+    this.dialogPending = true;
     this.busy = true;
     this.error = "";
     try {
@@ -1129,13 +1150,17 @@ export class HaosAiPanel extends LitElement {
       this.pendingChange = undefined;
       this.diffLines = undefined;
       this.draftDirty = false;
+      this.dialog = null;
       this.settingsNotice = "Approved change applied by Home Assistant.";
       await this.loadOverview();
       if (this.tab === "activity") await this.loadActivity();
     } catch (error) {
       this.error = this.describeError(error);
+      // Close on failure too, so the alert inside the panel is readable.
+      this.dialog = null;
     } finally {
       this.busy = false;
+      this.dialogPending = false;
     }
   }
 
@@ -1241,11 +1266,26 @@ export class HaosAiPanel extends LitElement {
   }
 
   private handleEntityKeydown(event: KeyboardEvent): void {
+    const matches = this.matchingEntities;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (!matches.length) return;
+      event.preventDefault();
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      const next = this.entityHighlight + step;
+      // Wrap around so the list stays reachable from either end.
+      this.entityHighlight = (next + matches.length) % matches.length;
+      return;
+    }
+    if (event.key === "Escape") {
+      this.entityHighlight = -1;
+      return;
+    }
     if (event.key !== "Enter" && event.key !== ",") return;
     event.preventDefault();
-    const match = this.matchingEntities[0];
+    const selected =
+      this.entityHighlight >= 0 ? matches[this.entityHighlight] : matches[0];
     this.addIgnoredEntities([
-      match?.entity_id ?? this.ignoredEntityQuery.trim(),
+      selected?.entity_id ?? this.ignoredEntityQuery.trim(),
     ]);
   }
 
@@ -1375,8 +1415,8 @@ export class HaosAiPanel extends LitElement {
         ${this.renderHeader()}
         ${this.progress ? this.renderProgress() : nothing}
         ${this.renderBudgetBanner()}
-        ${this.error ? this.renderAlert() : nothing}
         <main>
+          ${this.error ? this.renderAlert() : nothing}
           ${this.loading
             ? this.renderLoading()
             : this.tab === "inbox"
@@ -1948,16 +1988,33 @@ export class HaosAiPanel extends LitElement {
                       <div>
                         <strong>${message.role === "user" ? "You" : "HAOS AI"}</strong>
                         <p>${message.content}</p>
-                        ${proposedYaml && this.selected?.automation
+                        ${proposedYaml
                           ? html`
                               <div class="message-actions">
-                                <ha-button
-                                  appearance="outlined"
-                                  @click=${() => this.useChatYaml(message.content)}
-                                >
-                                  <ha-icon icon="mdi:file-replace-outline" slot="start"></ha-icon>
-                                  Use as automation draft
-                                </ha-button>
+                                ${this.selected?.automation
+                                  ? html`
+                                      <ha-button
+                                        appearance="outlined"
+                                        @click=${() => this.useChatYaml(message.content)}
+                                      >
+                                        <ha-icon icon="mdi:file-replace-outline" slot="start"></ha-icon>
+                                        Use as automation draft
+                                      </ha-button>
+                                    `
+                                  : html`
+                                      <ha-button
+                                        appearance="outlined"
+                                        @click=${() => void this.copyYaml(proposedYaml)}
+                                      >
+                                        <ha-icon icon="mdi:content-copy" slot="start"></ha-icon>
+                                        Copy YAML
+                                      </ha-button>
+                                      <small class="message-hint">
+                                        A draft is validated and approved against a
+                                        suggestion, so select an automation suggestion
+                                        in the inbox to use this one.
+                                      </small>
+                                    `}
                               </div>
                             `
                           : nothing}
@@ -2468,6 +2525,7 @@ export class HaosAiPanel extends LitElement {
                 @input=${(event: InputEvent) => {
                   this.ignoredEntityQuery = (event.target as HTMLInputElement).value;
                   this.ignoredEntityError = "";
+                  this.entityHighlight = -1;
                 }}
                 @keydown=${this.handleEntityKeydown}
                 @paste=${this.handleEntityPaste}
@@ -2476,14 +2534,27 @@ export class HaosAiPanel extends LitElement {
                 aria-autocomplete="list"
                 aria-expanded=${this.matchingEntities.length ? "true" : "false"}
                 aria-invalid=${this.ignoredEntityError ? "true" : "false"}
+                aria-controls="ignored-entity-results"
+                aria-activedescendant=${this.entityHighlight >= 0
+                  ? `ignored-entity-option-${this.entityHighlight}`
+                  : nothing}
               />
               ${this.matchingEntities.length
                 ? html`
-                    <div class="entity-results" role="listbox">
+                    <div
+                      class="entity-results"
+                      role="listbox"
+                      id="ignored-entity-results"
+                    >
                       ${this.matchingEntities.map(
-                        (entity) => html`
+                        (entity, index) => html`
                           <button
                             role="option"
+                            id=${`ignored-entity-option-${index}`}
+                            aria-selected=${index === this.entityHighlight
+                              ? "true"
+                              : "false"}
+                            class=${index === this.entityHighlight ? "active" : ""}
                             @click=${() => this.addIgnoredEntities([entity.entity_id])}
                           >
                             <span>
@@ -4132,6 +4203,13 @@ export class HaosAiPanel extends LitElement {
       margin-top: var(--ha-space-2, 8px);
     }
 
+    .message-hint {
+      margin-top: var(--ha-space-1, 4px);
+      display: block;
+      color: var(--haos-muted);
+      font-size: var(--ha-font-size-s, 13px);
+    }
+
     .composer {
       padding: var(--ha-space-3, 12px) var(--ha-space-4, 16px);
       display: grid;
@@ -4608,6 +4686,10 @@ export class HaosAiPanel extends LitElement {
 
     .entity-results button:last-child {
       border-bottom: 0;
+    }
+
+    .entity-results button.active {
+      background: var(--haos-selected);
     }
 
     .entity-results button:hover {

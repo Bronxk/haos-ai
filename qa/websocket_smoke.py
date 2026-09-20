@@ -9,7 +9,10 @@ from homeassistant.core import HomeAssistant
 
 sys.path.insert(0, "/workspace")
 
-from custom_components.haos_ai.const import DOMAIN  # noqa: E402
+from custom_components.haos_ai.const import (  # noqa: E402
+    DOMAIN,
+    INTEGRATION_VERSION,
+)
 from custom_components.haos_ai.runtime import HaosAIRuntime  # noqa: E402
 from custom_components.haos_ai.websocket_api import (  # noqa: E402
     _validated_options,
@@ -95,7 +98,7 @@ async def main() -> None:
 
     assert connection.result[0] == 1
     assert connection.result[1]["provider"] == "openai"
-    assert connection.result[1]["version"] == "1.0.3"
+    assert connection.result[1]["version"] == INTEGRATION_VERSION
     assert connection.result[1]["goal_presets"]
     options = _validated_options(
         {

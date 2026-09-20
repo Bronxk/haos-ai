@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 from datetime import time
 from pathlib import Path
 from typing import Any
 
-from homeassistant.components import frontend, persistent_notification
+from homeassistant.components import panel_custom, persistent_notification
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -66,25 +67,25 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             )
         ]
     )
-    frontend.async_register_built_in_panel(
+    # Registering through panel_custom keeps the panel config in step with the
+    # frontend: it writes the `trust_external` and `handle_safe_area` keys the
+    # frontend actually reads, instead of a hand-built dict that can drift.
+    # Home Assistant turned this helper into a coroutine, so await it only when
+    # the running version returns an awaitable.
+    registered = panel_custom.async_register_panel(
         hass,
-        component_name="custom",
+        frontend_url_path=PANEL_URL,
+        webcomponent_name=PANEL_COMPONENT,
         sidebar_title="HAOS AI",
         sidebar_icon="mdi:creation-outline",
-        frontend_url_path=PANEL_URL,
-        config={
-            "_panel_custom": {
-                "name": PANEL_COMPONENT,
-                "module_url": PANEL_MODULE_URL,
-                "embed_iframe": False,
-                # The frontend reads `trust_external`; `trust_external_script`
-                # is only the YAML key accepted by panel_custom and is ignored
-                # here. Keep this in sync with panel_custom.async_register_panel.
-                "trust_external": False,
-            }
-        },
+        module_url=PANEL_MODULE_URL,
+        embed_iframe=False,
+        trust_external=False,
+        handle_safe_area=False,
         require_admin=True,
     )
+    if inspect.isawaitable(registered):
+        await registered
     async_register_websocket(hass)
 
     async def handle_scan(call: ServiceCall) -> None:
