@@ -68,10 +68,11 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         ]
     )
     # Registering through panel_custom keeps the panel config in step with the
-    # frontend: it writes the `trust_external` and `handle_safe_area` keys the
-    # frontend actually reads, instead of a hand-built dict that can drift.
-    # Home Assistant turned this helper into a coroutine, so await it only when
-    # the running version returns an awaitable.
+    # frontend: it writes the `trust_external` key the frontend actually reads,
+    # instead of a hand-built dict that can drift. `handle_safe_area` is left at
+    # its default because Home Assistant 2026.7 does not accept it yet.
+    # The helper is a coroutine, so await it when the running version returns an
+    # awaitable.
     registered = panel_custom.async_register_panel(
         hass,
         frontend_url_path=PANEL_URL,
@@ -81,7 +82,6 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         module_url=PANEL_MODULE_URL,
         embed_iframe=False,
         trust_external=False,
-        handle_safe_area=False,
         require_admin=True,
     )
     if inspect.isawaitable(registered):

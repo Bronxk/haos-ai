@@ -97,7 +97,7 @@ Final candidate:
 
 ```text
 release/haos-ai-1.0.4.zip
-SHA-256 79d24d23a3f323f0dab1d5764b7edabcc5b22409cb2b1a25005777823520421a
+SHA-256 85dc64995c560ad6aa0549c12cfab487d08e4a956eaebe71f05f0cfb05d21251
 ```
 
 ## Open external gates

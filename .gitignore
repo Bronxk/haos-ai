@@ -3,6 +3,9 @@ dist/
 .venv/
 .venv-*/
 uv.lock
+# Local tool caches, used when the user-level caches are not writable.
+.npmcache/
+.node24/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/

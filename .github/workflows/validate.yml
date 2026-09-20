@@ -52,7 +52,20 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm audit --omit=dev --audit-level=high
-      - run: npm run build
+      # A build failure that only shows up in the raw log is hard to triage
+      # from a notification, so mirror the tail into the check annotations.
+      - name: Build the panel bundle
+        run: |
+          log=$(mktemp)
+          if npm run build >"$log" 2>&1; then
+            cat "$log"
+          else
+            cat "$log"
+            tail -40 "$log" | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit 1
+          fi
       - run: python scripts/release.py check
       - name: Verify committed panel bundle
         run: git diff --exit-code -- custom_components/haos_ai/frontend
