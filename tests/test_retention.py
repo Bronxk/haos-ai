@@ -92,3 +92,35 @@ def test_prune_drops_applied_changes_past_retention() -> None:
     store._prune()
 
     assert [item["id"] for item in store.data["applied_changes"]] == ["new"]
+
+
+def test_prune_keeps_a_suggestion_that_was_seen_again() -> None:
+    """A recurring suggestion refreshes last_seen_at, not created_at."""
+    store = _store()
+    store.data["suggestions"].append(
+        {
+            "id": "recurring",
+            "status": "dismissed",
+            "created_at": _stamp(RETENTION_DAYS + 30),
+            "last_seen_at": _stamp(1),
+        }
+    )
+
+    store._prune()
+
+    assert [item["id"] for item in store.data["suggestions"]] == ["recurring"]
+
+
+def test_prune_drops_a_suggestion_that_was_never_seen_again() -> None:
+    store = _store()
+    store.data["suggestions"].append(
+        {
+            "id": "forgotten",
+            "status": "new",
+            "created_at": _stamp(RETENTION_DAYS + 30),
+        }
+    )
+
+    store._prune()
+
+    assert store.data["suggestions"] == []

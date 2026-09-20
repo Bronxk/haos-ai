@@ -37,6 +37,9 @@ class Evidence:
     source_id: str
     observation: str
     period: str | None = None
+    # Set when the cited source was resolved against the live registries, so a
+    # fabricated identifier stays visible but cannot pass as an observation.
+    verified: bool = False
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Evidence:
@@ -45,6 +48,7 @@ class Evidence:
             source_id=str(data.get("source_id", "")),
             observation=str(data.get("observation", "")),
             period=str(data["period"]) if data.get("period") else None,
+            verified=bool(data.get("verified", False)),
         )
 
 
@@ -214,6 +218,9 @@ class AppliedChange:
     label: str
     suggestion_id: str | None = None
     suggestion_title: str = ""
+    # Content hash of an approved automation body, so the ledger records what
+    # was actually written and not only which suggestion asked for it.
+    config_hash: str = ""
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
     applied_at: str = field(default_factory=utcnow_iso)
     outcome: str = "pending"

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -13,6 +14,8 @@ from urllib.parse import urlsplit, urlunsplit
 import aiohttp
 
 ToolExecutor = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
+
+_LOGGER = logging.getLogger(__name__)
 TEXTUAL_TOOL_MARKERS = (
     "<｜｜DSML｜｜tool_calls>",
     "<tool_call>",
@@ -150,11 +153,17 @@ class ProviderClient(ABC):
         *,
         max_tool_calls: int,
         timeout: float,
+        usage_sink: dict[str, int] | None = None,
     ) -> ProviderResponse:
-        """Run a bounded provider-neutral tool loop."""
+        """Run a bounded provider-neutral tool loop.
+
+        ``usage_sink`` is updated in place as each provider call returns, so a
+        caller can still account for tokens that were already spent when a
+        later call in the loop fails.
+        """
         history = list(messages)
         calls_used = 0
-        total_usage: dict[str, int] = {}
+        total_usage: dict[str, int] = {} if usage_sink is None else usage_sink
 
         async def final_response() -> ProviderResponse:
             """Force a useful answer from the context collected so far."""
@@ -247,7 +256,20 @@ class ProviderClient(ABC):
                 }
             )
             for call in response.tool_calls:
-                result = await execute_tool(call.name, call.arguments)
+                try:
+                    result = await execute_tool(call.name, call.arguments)
+                except Exception as err:
+                    # One malformed tool argument must not abort an entire scan
+                    # after tokens were already spent: hand the failure back to
+                    # the model as a tool result instead.
+                    _LOGGER.debug(
+                        "Read-only context tool %s failed", call.name, exc_info=True
+                    )
+                    result = {
+                        "error": "tool_failed",
+                        "tool": call.name,
+                        "detail": type(err).__name__,
+                    }
                 history.append(
                     {
                         "role": "tool",

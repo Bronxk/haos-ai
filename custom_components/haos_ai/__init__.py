@@ -88,14 +88,27 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     async_register_websocket(hass)
 
     async def handle_scan(call: ServiceCall) -> None:
+        """Run one scan for an administrator or for an internal automation.
+
+        A call that carries a user context must come from an administrator. A
+        call without one is only reachable from inside Home Assistant itself —
+        an automation or a script — which is the documented way to trigger a
+        scan, so it is accepted deliberately and logged rather than treated as
+        a trusted administrator by accident.
+        """
         runtime: HaosAIRuntime | None = hass.data.get(DOMAIN)
         if runtime is None or runtime.operation_lock.locked():
             return
-        if call.context.user_id:
-            user = await hass.auth.async_get_user(call.context.user_id)
+        user_id = call.context.user_id
+        if user_id:
+            user = await hass.auth.async_get_user(user_id)
             if user is None or not user.is_admin:
                 _LOGGER.warning("Rejected HAOS AI scan requested by a non-admin")
                 return
+        else:
+            _LOGGER.debug(
+                "Accepted an unattributed HAOS AI scan from an automation or script"
+            )
 
         async def progress(event: dict[str, Any]) -> None:
             hass.bus.async_fire(f"{DOMAIN}_progress", event)
@@ -108,8 +121,12 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
 
 def _parse_time(value: str) -> time:
+    """Parse a stored scan time, tolerating a missing seconds field."""
     try:
-        hour, minute, second = (int(part) for part in value.split(":"))
+        parts = [int(part) for part in str(value).split(":")]
+        if len(parts) == 2:
+            parts.append(0)
+        hour, minute, second = parts
         return time(hour=hour, minute=minute, second=second)
     except (TypeError, ValueError):
         return time(hour=3)

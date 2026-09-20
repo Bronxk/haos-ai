@@ -4,7 +4,17 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
+    open-pull-requests-limit: 5
   - package-ecosystem: npm
     directory: "/"
     schedule:
       interval: weekly
+    groups:
+      # lit and yaml ship inside the committed panel bundle, so a bump there
+      # only counts once a rebuilt bundle travels in the same commit.
+      frontend:
+        patterns: ["*"]
+    open-pull-requests-limit: 5

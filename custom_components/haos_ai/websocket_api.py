@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import uuid
 from typing import Any
@@ -80,6 +82,12 @@ def _fail(connection: Any, msg_id: int, err: Exception) -> None:
     connection.send_error(
         msg_id, "unknown_error", "An unexpected error occurred; check the logs"
     )
+
+
+def _config_hash(config: dict[str, Any]) -> str:
+    """Return a stable content hash for one approved automation body."""
+    canonical = json.dumps(config, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _validated_options(incoming: dict[str, Any]) -> dict[str, Any]:
@@ -334,6 +342,7 @@ async def _async_apply_automation(
             label=str(config.get("alias") or suggestion.get("title", ""))[:160],
             suggestion_id=str(suggestion.get("id", "")),
             suggestion_title=str(suggestion.get("title", ""))[:120],
+            config_hash=_config_hash(config),
         )
     )
     return {
@@ -370,16 +379,40 @@ async def ws_change_apply(
     if suggestion is None:
         connection.send_error(msg["id"], "not_found", "Suggestion not found")
         return
+    if str(suggestion.get("status", "")) == "saved":
+        # Approval is not idempotent: replaying the request must not create a
+        # second automation or remove a second registry entry.
+        connection.send_error(
+            msg["id"],
+            "already_applied",
+            "This suggestion was already applied; run a new scan",
+        )
+        return
+
     operation = suggestion.get("operation")
     requested = str(msg.get("operation", ""))
-    automation_operations = {"create_automation", "update_automation"}
 
-    if requested in automation_operations:
-        operation_type = requested
-        target_id = ""
-    elif isinstance(operation, dict):
+    if isinstance(operation, dict):
         operation_type = str(operation.get("type", ""))
         target_id = str(operation.get("target_id", ""))
+    elif isinstance(suggestion.get("automation"), dict):
+        # An automation draft carries no operation of its own, and whether it
+        # replaces an existing automation follows from its stored target. The
+        # caller may confirm that, but cannot choose it.
+        derived = (
+            "update_automation"
+            if str(suggestion["automation"].get("target_id") or "")
+            else "create_automation"
+        )
+        if requested and requested != derived:
+            connection.send_error(
+                msg["id"],
+                "operation_mismatch",
+                "The approved operation does not match this suggestion",
+            )
+            return
+        operation_type = derived
+        target_id = ""
     else:
         connection.send_error(
             msg["id"], "not_found", "Approved operation not found"
@@ -396,11 +429,35 @@ async def ws_change_apply(
         )
         return
 
+    # One approval at a time: two concurrent approvals used to read the same
+    # automation file, and the last writer silently discarded the other change.
+    async with runtime.operation_lock:
+        await _async_apply_change(
+            hass, connection, msg, runtime, suggestion, operation_type, target_id
+        )
+
+
+async def _async_apply_change(
+    hass: HomeAssistant,
+    connection: Any,
+    msg: dict[str, Any],
+    runtime: HaosAIRuntime,
+    suggestion: dict[str, Any],
+    operation_type: str,
+    target_id: str,
+) -> None:
+    """Revalidate and write one approved change while the operation lock is held."""
+    automation_operations = {"create_automation", "update_automation"}
+    operation = suggestion.get("operation")
     try:
         if operation_type in automation_operations:
             config = msg.get("config")
             if not isinstance(config, dict) or not config:
                 raise HomeAssistantError("The approved automation config is missing")
+            # The body is revalidated here and its hash is recorded in the
+            # ledger, so the audit trail shows exactly what was written. A hash
+            # supplied by the browser is not trusted as proof of what a reviewer
+            # saw: the client is not an authority on its own display.
             result = await _async_apply_automation(
                 hass, runtime, suggestion, operation_type, config
             )
@@ -456,9 +513,16 @@ async def ws_change_apply(
             ):
                 raise HomeAssistantError("The integration rejected device removal")
             if device_registry.async_get(target_id):
-                device_registry.async_update_device(
-                    target_id, remove_config_entry_id=config_entry_id
-                )
+                if hasattr(device, "config_entry_id"):
+                    # Home Assistant 2026.8 links a device to exactly one
+                    # config entry, so detaching the approved owner is the same
+                    # as removing the device. remove_config_entry_id is the
+                    # deprecated equivalent and goes away in 2027.8.
+                    device_registry.async_remove_device(target_id)
+                else:
+                    device_registry.async_update_device(
+                        target_id, remove_config_entry_id=config_entry_id
+                    )
         applied = runtime.store.record_applied_change(
             AppliedChange(
                 kind=operation_type,

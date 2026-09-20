@@ -165,6 +165,21 @@ def _extract_json(text: str) -> dict[str, Any]:
     return value
 
 
+# Hard ceiling on how many model-supplied items are parsed before balancing,
+# so a runaway response cannot stall the event loop. Balancing, not this cap,
+# decides the final mix.
+MAX_PARSED_RECOMMENDATIONS = 200
+
+
+def _merge_usage(target: dict[str, int], usage: dict[str, Any] | None) -> None:
+    """Add one provider call's token usage into a running accumulator."""
+    for key, value in (usage or {}).items():
+        try:
+            target[str(key)] = target.get(str(key), 0) + int(value)
+        except (TypeError, ValueError):
+            continue
+
+
 class Advisor:
     """Own one configured provider and all read-only workflows."""
 
@@ -388,15 +403,24 @@ class Advisor:
                 name, arguments, self.store.data["preferences"]
             )
 
-        response = await self.scan_provider.run_tool_loop(
-            messages,
-            self.context.tool_specs(),
-            execute,
-            max_tool_calls=limits["tool_calls"],
-            timeout=SCAN_PROVIDER_TIMEOUT,
-        )
-        if not response.content.strip():
-            raise ProviderResponseError("Provider returned an empty scan response")
+        usage_sink: dict[str, int] = {}
+        try:
+            response = await self.scan_provider.run_tool_loop(
+                messages,
+                self.context.tool_specs(),
+                execute,
+                max_tool_calls=limits["tool_calls"],
+                timeout=SCAN_PROVIDER_TIMEOUT,
+                usage_sink=usage_sink,
+            )
+            if not response.content.strip():
+                raise ProviderResponseError("Provider returned an empty scan response")
+        except BaseException:
+            # Tokens already spent must still count against the monthly budget,
+            # so finalize the receipt before letting the failure propagate.
+            self.store.set_receipt_usage(receipt.id, usage_sink)
+            await self.store.async_save()
+            raise
         await progress({"stage": "validate", "scan_id": scan_id, "progress": 0.8})
         try:
             payload = _extract_json(response.content)
@@ -415,6 +439,7 @@ class Advisor:
                 [],
                 timeout=INTERACTIVE_PROVIDER_TIMEOUT,
             )
+            _merge_usage(usage_sink, repair.usage)
             payload = _extract_json(repair.content)
 
         recommendations = await self._async_parse_recommendations(
@@ -425,6 +450,7 @@ class Advisor:
             max_hygiene=limits["hygiene"],
         )
         provider_recommendation_count = len(recommendations)
+        self.store.set_receipt_usage(receipt.id, usage_sink)
         stored_receipt = self.store.get_receipt(receipt.id)
         if stored_receipt is not None:
             stored_receipt["payload_preview"] = {
@@ -435,7 +461,6 @@ class Advisor:
                 set(stored_receipt["categories"])
                 | {trace["tool"] for trace in self.context.outbound_trace}
             )
-            stored_receipt["usage"] = response.usage
         recommendations = self.store.add_suggestions(recommendations)
         recurrence_count = provider_recommendation_count - len(recommendations)
         self.store.data["scan_runs"].append(
@@ -472,11 +497,8 @@ class Advisor:
         if not isinstance(raw_items, list):
             raise ProviderResponseError("recommendations must be an array")
         recommendations: list[Recommendation] = []
-        known_automation_ids = {
-            str(item.get("config", {}).get("id"))
-            for item in self.context.automations().get("automations", [])
-            if item.get("config", {}).get("id")
-        }
+        # The full, exclusion-aware set, not the 50-row window the model sees.
+        known_automation_ids = self.context.automation_ids()
         local_candidates = self.context.hygiene_candidates()
         removable_entity_ids = {
             str(item.get("entity_id"))
@@ -490,18 +512,22 @@ class Advisor:
             and item.get("device_id")
             and item.get("config_entry_id")
         }
-        for raw in raw_items[:max_total]:
+        for raw in raw_items[:MAX_PARSED_RECOMMENDATIONS]:
             if not isinstance(raw, dict):
                 continue
             try:
                 kind = RecommendationKind(raw.get("kind", "hygiene"))
-                evidence = [
-                    Evidence.from_dict(item)
-                    for item in raw.get("evidence", [])
-                    if isinstance(item, dict)
-                    and item.get("source_id")
-                    and item.get("observation")
-                ]
+                evidence: list[Evidence] = []
+                for item in raw.get("evidence", []):
+                    if not isinstance(item, dict):
+                        continue
+                    if not item.get("source_id") or not item.get("observation"):
+                        continue
+                    entry = Evidence.from_dict(item)
+                    entry.verified = self.context.is_verified_source(
+                        entry.source_type, entry.source_id
+                    )
+                    evidence.append(entry)
                 if not evidence:
                     continue
                 automation = None
@@ -620,15 +646,45 @@ class Advisor:
                 name, arguments, self.store.data["preferences"]
             )
 
-        response = await self.provider.run_tool_loop(
-            messages,
-            self.context.tool_specs(),
-            execute,
-            max_tool_calls=8,
-            timeout=INTERACTIVE_PROVIDER_TIMEOUT,
-        )
-        if not response.content.strip():
-            raise ProviderResponseError("Provider returned an empty chat response")
+        usage_sink: dict[str, int] = {}
+        try:
+            response = await self.provider.run_tool_loop(
+                messages,
+                self.context.tool_specs(),
+                execute,
+                max_tool_calls=8,
+                timeout=INTERACTIVE_PROVIDER_TIMEOUT,
+                usage_sink=usage_sink,
+            )
+            if not response.content.strip():
+                raise ProviderResponseError("Provider returned an empty chat response")
+        except BaseException:
+            # A failed turn still spent tokens; record them against the budget.
+            if usage_sink:
+                self.store.add_receipt(
+                    PrivacyReceipt(
+                        provider=self.provider_name,
+                        model=self.provider.model,
+                        purpose="chat",
+                        categories=sorted(
+                            {"chat"}
+                            | {
+                                trace["tool"]
+                                for trace in self.context.outbound_trace
+                            }
+                        ),
+                        redactions=sorted(set(chat_redactions)),
+                        payload_preview={
+                            "thread_id": thread_id,
+                            "message_count": len(history),
+                            "requested_context": self.context.outbound_trace,
+                            "failed": True,
+                        },
+                        usage=usage_sink,
+                    )
+                )
+                await self.store.async_save()
+            raise
         receipt = PrivacyReceipt(
             provider=self.provider_name,
             model=self.provider.model,

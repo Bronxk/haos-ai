@@ -52,6 +52,10 @@ STATE_DOMAINS_WITHOUT_ROUTINES = frozenset(
 )
 SENSITIVE_DOMAINS = frozenset({"alarm_control_panel", "camera"})
 
+# The model-facing automation listing is capped so a huge installation cannot
+# flood one tool result. Internal checks must not rely on this window.
+MAX_AUTOMATION_ROWS = 50
+
 
 def iter_device_entries(registry: dr.DeviceRegistry) -> list[Any]:
     """Return every device entry, across Home Assistant registry versions.
@@ -589,6 +593,7 @@ class ContextEngine:
         if query in {"", "*", "all"}:
             query = ""
         rows: list[dict[str, Any]] = []
+        truncated = False
         for automation in component.entities:
             raw = automation.raw_config
             if not raw or self._is_excluded(automation.entity_id):
@@ -607,9 +612,70 @@ class ContextEngine:
                     "referenced_areas": sorted(automation.referenced_areas),
                 }
             )
-            if len(rows) >= 50:
+            if len(rows) >= MAX_AUTOMATION_ROWS:
+                truncated = True
                 break
-        return {"automations": rows, "available": True}
+        return {"automations": rows, "available": True, "truncated": truncated}
+
+    def automation_ids(self) -> set[str]:
+        """Return every automation config id, honouring the ignore scopes.
+
+        ``automations()`` is capped for the model's benefit, so it must not be
+        used to decide whether a proposed update target exists: on a large
+        installation the target would look missing and the update would be
+        silently degraded into a create.
+        """
+        component = self.hass.data.get(AUTOMATION_COMPONENT)
+        if component is None:
+            return set()
+        identifiers: set[str] = set()
+        for automation in component.entities:
+            raw = getattr(automation, "raw_config", None)
+            if not raw or self._is_excluded(automation.entity_id):
+                continue
+            if automation_id := raw.get("id"):
+                identifiers.add(str(automation_id))
+        return identifiers
+
+    def is_verified_source(self, source_type: str, source_id: str) -> bool:
+        """Return whether a cited evidence source exists in this installation.
+
+        A model can invent an identifier; unverifiable evidence stays visible
+        but is marked, so a fabricated claim cannot pass as an observation.
+        """
+        identifier = str(source_id or "").strip()
+        if not identifier:
+            return False
+        entity_registry = er.async_get(self.hass)
+        if source_type in {"entity", "history"}:
+            return bool(
+                self.hass.states.get(identifier)
+                or entity_registry.async_get(identifier)
+            )
+        if source_type == "device":
+            return dr.async_get(self.hass).async_get(identifier) is not None
+        if source_type == "automation":
+            return bool(
+                identifier in self.automation_ids()
+                or self.hass.states.get(identifier)
+                or entity_registry.async_get(identifier)
+            )
+        if source_type == "integration":
+            return any(
+                entry.domain == identifier
+                for entry in self.hass.config_entries.async_entries()
+            )
+        if source_type == "registry":
+            return bool(
+                entity_registry.async_get(identifier)
+                or dr.async_get(self.hass).async_get(identifier)
+                or identifier in ar.async_get(self.hass).areas
+                or identifier in fr.async_get(self.hass).floors
+                or identifier in lr.async_get(self.hass).labels
+            )
+        # Supervisor app slugs need a network round trip to confirm, so they
+        # are reported as unverified rather than guessed either way.
+        return False
 
     async def async_history_summary(
         self, entity_id: str, days: int

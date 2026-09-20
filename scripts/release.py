@@ -16,6 +16,24 @@ RELEASE_DIR = ROOT / "release"
 EXCLUDED_SUFFIXES = {".pyc", ".map"}
 EXCLUDED_PARTS = {"__pycache__", ".DS_Store"}
 
+# A runtime file that is missing here produces an archive that installs but
+# cannot boot, which is exactly the failure the release smoke test must catch.
+REQUIRED_MEMBERS = (
+    "manifest.json",
+    "__init__.py",
+    "config_flow.py",
+    "websocket_api.py",
+    "advisor.py",
+    "context.py",
+    "storage.py",
+    "automation_store.py",
+    "automation_validation.py",
+    "privacy.py",
+    "strings.json",
+    "translations/en.json",
+    "frontend/haos-ai-panel.js",
+)
+
 
 def versions() -> dict[str, str]:
     package = json.loads((ROOT / "package.json").read_text())
@@ -51,6 +69,7 @@ def build(expected: str) -> Path:
     check(expected)
     RELEASE_DIR.mkdir(exist_ok=True)
     archive = RELEASE_DIR / f"haos-ai-{expected}.zip"
+    written: set[str] = set()
     with ZipFile(archive, "w", ZIP_DEFLATED, compresslevel=9) as bundle:
         for path in sorted(COMPONENT.rglob("*")):
             if not path.is_file():
@@ -65,10 +84,21 @@ def build(expected: str) -> Path:
                 / "haos_ai"
                 / path.relative_to(COMPONENT)
             )
+            written.add(str(relative))
             info = ZipInfo(str(relative), date_time=(2026, 1, 1, 0, 0, 0))
             info.compress_type = ZIP_DEFLATED
             info.external_attr = 0o644 << 16
             bundle.writestr(info, path.read_bytes())
+
+    missing = [
+        member
+        for member in REQUIRED_MEMBERS
+        if f"custom_components/haos_ai/{member}" not in written
+    ]
+    if missing:
+        archive.unlink(missing_ok=True)
+        raise SystemExit(f"Release archive is missing runtime files: {missing}")
+
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     checksum = archive.with_suffix(".zip.sha256")
     checksum.write_text(f"{digest}  {archive.name}\n")

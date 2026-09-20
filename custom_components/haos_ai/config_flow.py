@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 import voluptuous as vol
@@ -37,6 +38,32 @@ from .providers import create_provider
 from .providers.base import ProviderAuthError, ProviderError, normalize_base_url
 
 _LOGGER = logging.getLogger(__name__)
+
+SCHEDULE_TIME_RE = re.compile(r"^([01]?\d|2[0-3]):[0-5]\d(:[0-5]\d)?$")
+
+
+def _normalize_schedule_time(value: Any) -> str:
+    """Return HH:MM:SS for an accepted HH:MM or HH:MM:SS scan time.
+
+    Storing a bare ``HH:MM`` used to be accepted here and then discarded at
+    load time, which silently moved a configured scan back to 03:00.
+    """
+    text = str(value).strip()
+    if not SCHEDULE_TIME_RE.match(text):
+        raise vol.Invalid("Scan time must use HH:MM or HH:MM:SS")
+    parts = [int(part) for part in text.split(":")]
+    if len(parts) == 2:
+        parts.append(0)
+    hour, minute, second = parts
+    return f"{hour:02d}:{minute:02d}:{second:02d}"
+
+
+def _schedule_time_default(value: Any) -> str:
+    """Normalize a stored default, falling back instead of failing the form."""
+    try:
+        return _normalize_schedule_time(value)
+    except vol.Invalid:
+        return DEFAULT_SCHEDULE_TIME
 
 
 def _provider_schema(defaults: dict[str, Any]) -> vol.Schema:
@@ -103,8 +130,10 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
             ): vol.In(SCHEDULES),
             vol.Required(
                 CONF_SCHEDULE_TIME,
-                default=defaults.get(CONF_SCHEDULE_TIME, DEFAULT_SCHEDULE_TIME),
-            ): str,
+                default=_schedule_time_default(
+                    defaults.get(CONF_SCHEDULE_TIME, DEFAULT_SCHEDULE_TIME)
+                ),
+            ): _normalize_schedule_time,
             vol.Required(
                 CONF_SCHEDULE_WEEKDAY,
                 default=defaults.get(
@@ -224,34 +253,47 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         defaults.pop(CONF_API_KEY, None)
         if user_input is not None:
             candidate = dict(user_input)
+            provider = str(candidate.get(CONF_PROVIDER, ""))
             if not str(candidate.get(CONF_API_KEY, "")).strip():
-                candidate[CONF_API_KEY] = entry.data[CONF_API_KEY]
-            try:
-                await _async_validate(self.hass, candidate)
-            except ProviderAuthError:
-                errors["base"] = "invalid_auth"
-            except ValueError:
-                errors["base"] = "invalid_url"
-            except ProviderError:
-                errors["base"] = "cannot_connect"
-            except Exception:
-                _LOGGER.exception("Unexpected provider reconfiguration error")
-                errors["base"] = "unknown"
-            else:
-                normalized = {
-                    **candidate,
-                    CONF_API_KEY: str(candidate[CONF_API_KEY]).strip(),
-                    CONF_MODEL: str(candidate[CONF_MODEL]).strip(),
-                    CONF_BASE_URL: normalize_base_url(str(candidate[CONF_BASE_URL])),
-                }
-                return self.async_update_reload_and_abort(
-                    entry,
-                    data=normalized,
-                    title=(
-                        f"HAOS AI · "
-                        f"{PROVIDER_LABELS[str(candidate[CONF_PROVIDER])]}"
-                    ),
-                )
+                # An empty key keeps the stored credential, but only while the
+                # provider stays the same: a new provider needs its own key,
+                # exactly as the panel path enforces.
+                if provider == str(entry.data.get(CONF_PROVIDER, "")):
+                    candidate[CONF_API_KEY] = entry.data[CONF_API_KEY]
+                else:
+                    errors["base"] = "invalid_auth"
+            if not errors:
+                try:
+                    await _async_validate(self.hass, candidate)
+                except ProviderAuthError:
+                    errors["base"] = "invalid_auth"
+                except ValueError:
+                    errors["base"] = "invalid_url"
+                except ProviderError:
+                    errors["base"] = "cannot_connect"
+                except Exception:
+                    _LOGGER.exception("Unexpected provider reconfiguration error")
+                    errors["base"] = "unknown"
+                else:
+                    normalized = {
+                        **candidate,
+                        CONF_API_KEY: str(candidate[CONF_API_KEY]).strip(),
+                        CONF_MODEL: str(candidate[CONF_MODEL]).strip(),
+                        CONF_BASE_URL: normalize_base_url(
+                            str(candidate[CONF_BASE_URL])
+                        ),
+                    }
+                    # __init__ registers a config entry update listener, so the
+                    # reloading variant would reload the entry twice; Home
+                    # Assistant errors on that combination from 2026.12.
+                    return self.async_update_and_abort(
+                        entry,
+                        data=normalized,
+                        title=(
+                            f"HAOS AI · "
+                            f"{PROVIDER_LABELS[str(candidate[CONF_PROVIDER])]}"
+                        ),
+                    )
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=_provider_schema(user_input or defaults),

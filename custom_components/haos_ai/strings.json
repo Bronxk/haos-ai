@@ -71,7 +71,7 @@
     "budget.no_cap": "No cap set",
     "budget.warning": "This month's token budget is nearly spent. Scans and chat stop when it runs out.",
     "budget.exceeded": "This month's token budget is spent. Scans and chat are paused until you raise it.",
-    "budget.save": "Save budget",
+    "evidence.unverified": "Not found in this installation",
     "scan_profile.title": "Separate model for scans",
     "scan_profile.description": "Scans are long and tool-heavy. Run them on a cheaper model and keep chat on a strong one.",
     "scan_profile.enable": "Use a separate provider for scans",
@@ -90,7 +90,6 @@
     "ignore.areas_help": "Entities and devices in these areas are never sent, including their history.",
     "ignore.labels": "Ignored labels",
     "ignore.labels_help": "Anything carrying one of these labels is withheld from every request.",
-    "ignore.add": "Add",
     "ignore.enforced": "These exclusions are applied locally before anything is sent. They are not requests to the model.",
     "ignore.not_found": "Not currently found",
     "ignore.stop": "Stop ignoring",
@@ -108,7 +107,6 @@
     "diff.identical": "The draft matches the stored automation exactly.",
     "diff.unavailable": "The stored automation could not be read for comparison.",
     "diff.loading": "Loading the stored automation…",
-    "action.cancel": "Cancel",
-    "action.save": "Save"
+    "action.cancel": "Cancel"
   }
 }

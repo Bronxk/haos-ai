@@ -4,6 +4,12 @@ Audit date: 2026-08-02
 Candidate: HAOS AI 1.0.3
 Decision: **NO-GO until the external gates below pass**
 
+Re-audit note (2026-09-20): the working tree has moved well past the
+audited 1.0.3 candidate — the approval path, token accounting, the
+device path and the panel have all changed since. The evidence below is
+updated to the current tree; the findings table still describes the
+audited release and is kept for traceability.
+
 The local candidate is technically ready for the remaining external acceptance
 steps. No unresolved critical or high code finding remains in the audited
 workspace.
@@ -38,9 +44,9 @@ workspace.
 ## Evidence
 
 - Ruff 0.16.1: pass.
-- Python: 36 tests pass.
+- Python: 62 tests pass.
 - TypeScript: pass.
-- Vitest: 8 tests pass.
+- Vitest: 10 tests pass.
 - Clean `npm ci` and Vite production build: pass; committed bundle hash unchanged.
 - Production dependencies: zero reported npm vulnerabilities.
 - Gitleaks 8.30.1: no leaks after quarantine.
@@ -58,7 +64,7 @@ workspace.
 - Provider defaults verified against current official documentation:
   `gpt-5.6` routes to GPT-5.6 Sol and supports Responses; `claude-sonnet-5`
   is a current Claude API ID; `deepseek-v4-flash` is a current DeepSeek model.
-- Archive is deterministic across two builds, contains 24 runtime files, and
+- Archive is deterministic across two builds, contains 25 runtime files, and
   contains no `.storage`, logs, databases, environment files, bytecode, or
   source maps.
 
@@ -66,7 +72,7 @@ Final candidate:
 
 ```text
 release/haos-ai-1.0.3.zip
-SHA-256 10d005206b73cc7dadf51e4a1b736792abb96bc66da14acfdc1e471b21418299
+SHA-256 33648ce45d25b394fd66d4e3718c49e4e7c96daef6129b53310680e1b54ceff5
 ```
 
 ## Release procedure

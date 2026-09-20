@@ -54,6 +54,8 @@ interface Evidence {
   source_id: string;
   observation: string;
   period?: string;
+  /** False when the cited source could not be resolved in this installation. */
+  verified?: boolean;
 }
 
 interface ValidationResult {
@@ -321,7 +323,7 @@ const PANEL_STRINGS: Record<string, string> = {
     "This month's token budget is nearly spent. Scans and chat stop when it runs out.",
   "budget.exceeded":
     "This month's token budget is spent. Scans and chat are paused until you raise it.",
-  "budget.save": "Save budget",
+  "evidence.unverified": "Not found in this installation",
 
   "scan_profile.title": "Separate model for scans",
   "scan_profile.description":
@@ -348,7 +350,6 @@ const PANEL_STRINGS: Record<string, string> = {
   "ignore.labels": "Ignored labels",
   "ignore.labels_help":
     "Anything carrying one of these labels is withheld from every request.",
-  "ignore.add": "Add",
   "ignore.enforced":
     "These exclusions are applied locally before anything is sent. They are not requests to the model.",
   "ignore.not_found": "Not currently found",
@@ -372,7 +373,6 @@ const PANEL_STRINGS: Record<string, string> = {
   "diff.loading": "Loading the stored automation…",
 
   "action.cancel": "Cancel",
-  "action.save": "Save",
 };
 
 /** Read a panel string, preferring Home Assistant's translation catalog. */
@@ -529,6 +529,7 @@ export class HaosAiPanel extends LitElement {
       this.draftYaml = yaml;
       this.draftValidation = this.selected?.automation?.validation;
       this.draftError = "";
+      this.draftDirty = false;
     }
   }
 
@@ -575,18 +576,29 @@ export class HaosAiPanel extends LitElement {
     return "Something went wrong. Check Home Assistant logs for details.";
   }
 
+  private overviewRequest = 0;
+
+  private draftDirty = false;
+
   private async loadOverview(): Promise<void> {
     if (!this.hass) return;
-    this.loading = true;
+    // Only the very first load owns the full-screen loader; a refresh after a
+    // save must not blank out a panel the user is working in.
+    const isRefresh = this.overview !== undefined;
+    const request = ++this.overviewRequest;
+    if (!isRefresh) this.loading = true;
     try {
-      this.overview = await this.call<Overview>("haos_ai/overview");
-      this.hydrateSettings(this.overview);
-      this.threads = Array.isArray(this.overview.threads)
-        ? this.overview.threads
+      const overview = await this.call<Overview>("haos_ai/overview");
+      if (request !== this.overviewRequest) return;
+      this.overview = overview;
+      if (!isRefresh) this.hydrateSettings(overview);
+      this.syncDraft(overview);
+      this.threads = Array.isArray(overview.threads)
+        ? overview.threads
         : [];
       if (
         this.selectedId &&
-        !this.overview.suggestions.some((item) => item.id === this.selectedId)
+        !overview.suggestions.some((item) => item.id === this.selectedId)
       ) {
         this.selectedId = undefined;
       }
@@ -594,8 +606,20 @@ export class HaosAiPanel extends LitElement {
     } catch (error) {
       this.error = this.describeError(error);
     } finally {
-      this.loading = false;
+      if (!isRefresh) this.loading = false;
     }
+  }
+
+  /** Resync the selected draft unless the user has edited it locally. */
+  private syncDraft(overview: Overview): void {
+    if (!this.selectedId || this.draftDirty) return;
+    const item = overview.suggestions.find(
+      (entry) => entry.id === this.selectedId,
+    );
+    if (!item?.automation) return;
+    this.draftYaml = item.automation.yaml ?? "";
+    this.draftValidation = item.automation.validation;
+    this.draftError = "";
   }
 
   private hydrateSettings(overview: Overview): void {
@@ -1099,6 +1123,7 @@ export class HaosAiPanel extends LitElement {
       });
       this.pendingChange = undefined;
       this.diffLines = undefined;
+      this.draftDirty = false;
       this.settingsNotice = "Approved change applied by Home Assistant.";
       await this.loadOverview();
       if (this.tab === "activity") await this.loadActivity();
@@ -1248,6 +1273,8 @@ export class HaosAiPanel extends LitElement {
       }>("haos_ai/automation/validate", { config });
       this.draftYaml = result.yaml;
       this.draftValidation = result.validation;
+      // The validated draft is what the user is working on; keep it.
+      this.draftDirty = true;
     } catch (error) {
       this.draftError = this.describeError(error);
     } finally {
@@ -1297,6 +1324,8 @@ export class HaosAiPanel extends LitElement {
     this.draftYaml = yaml;
     this.draftValidation = undefined;
     this.draftError = "";
+    // The user loaded this deliberately, so a refresh must not overwrite it.
+    this.draftDirty = true;
     this.tab = "inbox";
   }
 
@@ -1702,6 +1731,7 @@ export class HaosAiPanel extends LitElement {
                   @input=${(event: InputEvent) => {
                     this.draftYaml = (event.target as HTMLTextAreaElement).value;
                     this.draftValidation = undefined;
+                    this.draftDirty = true;
                   }}
                 ></textarea>
                 <div class="yaml-actions">
@@ -1805,6 +1835,11 @@ export class HaosAiPanel extends LitElement {
           <strong>${evidence.source_id}</strong>
           <p>${evidence.observation}</p>
           ${evidence.period ? html`<small>${evidence.period}</small>` : nothing}
+          ${evidence.verified
+            ? nothing
+            : html`<small class="evidence-unverified"
+                >${this.t("evidence.unverified")}</small
+              >`}
         </div>
         ${path
           ? html`
@@ -3100,7 +3135,9 @@ export class HaosAiPanel extends LitElement {
             <ha-button
               variant=${destructive ? "danger" : nothing}
               appearance=${destructive ? "filled" : "accent"}
-              ?disabled=${this.busy}
+              ?disabled=${this.busy ||
+              (change.kind === "update_automation" &&
+                (this.diffLoading || !!this.diffError))}
               @click=${this.approveChange}
             >${destructive
               ? "Approve & remove"
@@ -3826,6 +3863,11 @@ export class HaosAiPanel extends LitElement {
       color: var(--haos-muted);
       font-size: var(--ha-font-size-s, 13px);
       line-height: var(--ha-line-height-normal, 1.45);
+    }
+
+    .evidence-row small.evidence-unverified {
+      color: var(--haos-warning, #c77700);
+      font-style: italic;
     }
 
     .section-heading {

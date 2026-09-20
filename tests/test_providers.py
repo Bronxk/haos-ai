@@ -328,7 +328,7 @@ class ErrorResponse:
 
     status = 500
 
-    async def __aenter__(self) -> "ErrorResponse":
+    async def __aenter__(self) -> ErrorResponse:
         return self
 
     async def __aexit__(self, *args: Any) -> None:

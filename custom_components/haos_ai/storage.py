@@ -66,6 +66,7 @@ def default_data() -> dict[str, Any]:
             "change_permissions": dict(DEFAULT_CHANGE_PERMISSIONS),
         },
         "privacy_receipts": [],
+        "usage_months": {},
         "scan_runs": [],
         "applied_changes": [],
     }
@@ -192,10 +193,24 @@ class AdvisorStore:
             except (KeyError, TypeError, ValueError):
                 return True
 
+        def still_relevant(item: dict[str, Any]) -> bool:
+            """Expire a suggestion on its newest activity, not on first sight.
+
+            A recurring suggestion refreshes ``last_seen_at`` while its
+            ``created_at`` stays fixed. Pruning on ``created_at`` therefore
+            deleted suggestions the user had already dismissed, and the next
+            scan recreated them as new and re-notified.
+            """
+            try:
+                stamp = item.get("last_seen_at") or item["created_at"]
+                return datetime.fromisoformat(str(stamp)) >= cutoff
+            except (KeyError, TypeError, ValueError):
+                return True
+
         suggestions = [
             item
             for item in self.data.get("suggestions", [])
-            if isinstance(item, dict) and recent(item)
+            if isinstance(item, dict) and still_relevant(item)
         ]
         self.data["suggestions"] = suggestions[-MAX_SUGGESTIONS:]
         receipts = [
@@ -442,12 +457,108 @@ class AdvisorStore:
         ]
 
     def add_receipt(self, receipt: PrivacyReceipt) -> None:
-        self.data["privacy_receipts"].append(receipt.to_dict())
+        item = receipt.to_dict()
+        self.data["privacy_receipts"].append(item)
+        usage = item.get("usage")
+        if isinstance(usage, dict) and usage:
+            created_at = str(item.get("created_at", ""))
+            self._add_month_usage(created_at, usage)
+            self._count_month_request(created_at)
+
+    def set_receipt_usage(self, receipt_id: str, usage: dict[str, int]) -> None:
+        """Finalize a receipt's token usage and roll it into the month total.
+
+        A scan receipt is stored before the provider call so the request stays
+        auditable, which means its usage arrives later and may cover only part
+        of the work when a later call failed. The month rollup is adjusted by
+        the difference, so repeated calls for one receipt cannot double-count.
+        """
+        stored = self.get_receipt(receipt_id)
+        if stored is None:
+            return
+        previous = stored.get("usage")
+        if not isinstance(previous, dict):
+            previous = {}
+        finalized: dict[str, int] = {}
+        for key, value in (usage or {}).items():
+            try:
+                finalized[str(key)] = int(value)
+            except (TypeError, ValueError):
+                continue
+        stored["usage"] = finalized
+        created_at = str(stored.get("created_at", ""))
+        delta: dict[str, int] = {}
+        for key in set(finalized) | set(previous):
+            try:
+                change = int(finalized.get(key, 0) or 0) - int(
+                    previous.get(key, 0) or 0
+                )
+            except (TypeError, ValueError):
+                continue
+            if change:
+                delta[key] = change
+        if delta:
+            self._add_month_usage(created_at, delta)
+        if finalized and not previous:
+            self._count_month_request(created_at)
+
+    def _month_usage(self, created_at: str) -> dict[str, int] | None:
+        """Return the bounded per-month usage rollup entry for a receipt."""
+        month = str(created_at)[:7]
+        if len(month) != 7:
+            return None
+        months = self.data.setdefault("usage_months", {})
+        entry = months.setdefault(
+            month, {"input_tokens": 0, "output_tokens": 0, "requests": 0}
+        )
+        for stale in sorted(months)[:-24]:
+            months.pop(stale, None)
+        return entry
+
+    def _add_month_usage(self, created_at: str, usage: dict[str, Any]) -> None:
+        """Add a token delta to the month rollup, never going below zero."""
+        entry = self._month_usage(created_at)
+        if entry is None:
+            return
+        try:
+            entry["input_tokens"] = max(
+                0, entry["input_tokens"] + int(usage.get("input_tokens", 0) or 0)
+            )
+            entry["output_tokens"] = max(
+                0, entry["output_tokens"] + int(usage.get("output_tokens", 0) or 0)
+            )
+        except (TypeError, ValueError):
+            return
+
+    def _count_month_request(self, created_at: str) -> None:
+        entry = self._month_usage(created_at)
+        if entry is not None:
+            entry["requests"] += 1
 
     def monthly_usage(self, now: datetime | None = None) -> dict[str, int]:
-        """Aggregate provider token usage for the current UTC month."""
+        """Aggregate provider token usage for the current UTC month.
+
+        The rollup is authoritative because it survives receipt pruning. A
+        store written before the rollup existed falls back to scanning its
+        retained receipts.
+        """
         moment = now or datetime.now(UTC)
         prefix = f"{moment.year:04d}-{moment.month:02d}"
+        months = self.data.get("usage_months")
+        entry = months.get(prefix) if isinstance(months, dict) else None
+        if isinstance(entry, dict):
+            try:
+                input_tokens = max(0, int(entry.get("input_tokens", 0) or 0))
+                output_tokens = max(0, int(entry.get("output_tokens", 0) or 0))
+                requests = max(0, int(entry.get("requests", 0) or 0))
+            except (TypeError, ValueError):
+                input_tokens = output_tokens = requests = 0
+            return {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": input_tokens + output_tokens,
+                "requests": requests,
+            }
         input_tokens = 0
         output_tokens = 0
         requests = 0

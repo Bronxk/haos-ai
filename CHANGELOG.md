@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+- Hardened the approval path. Approvals are serialized, a suggestion that was
+  already applied is refused instead of applied a second time, the operation is
+  derived from the stored suggestion rather than chosen by the caller, and the
+  applied-change ledger records a content hash of every automation body that
+  was written.
+- Token accounting now fails closed. Usage is recorded even when a provider
+  call fails mid-loop, the JSON-repair call is counted, and a per-month rollup
+  survives receipt pruning instead of under-counting the budget past 200
+  requests.
+- Device removal uses `async_remove_device` on Home Assistant 2026.8 and newer,
+  where a device belongs to exactly one config entry; older releases keep the
+  previous behaviour.
+- Replaced `async_update_reload_and_abort` in the reconfigure flow. Combined
+  with the entry's update listener it is deprecated since Home Assistant 2026.6
+  and raises from 2026.12. An empty API key can no longer silently carry over
+  to a different provider either.
+- Scan time is validated as `HH:MM` or `HH:MM:SS`. A bare `22:30` used to be
+  accepted and then silently replaced by `03:00`.
+- Suggestions are pruned on their newest activity, so a recurring dismissed
+  suggestion is no longer deleted and recreated as new after 90 days.
+- Recommendations are balanced before the per-run cap, so a hygiene-heavy
+  response can no longer crowd out every automation.
+- An update target is validated against every automation rather than the
+  50-row window sent to the model, which turned updates into duplicates on
+  larger installations.
+- Cited evidence is checked against the live registries and marked in the panel
+  when it cannot be resolved.
+- A failing read-only context tool now returns an error to the model instead of
+  aborting the whole scan after tokens were already spent.
+- The panel no longer flashes the full-screen loader on every refresh, no
+  longer re-hydrates Settings over unsaved edits, and no longer discards an
+  edited draft when the selection refreshes. The approval button is disabled
+  while the update diff is loading or unavailable.
+- CI runs the automation apply, release archive and freshness smoke tests. The
+  archive build fails if a runtime file is missing, the built archive is
+  exercised by a real install, Python and Node moved to 3.14 and 24, and
+  Dependabot groups its updates.
+- `SECURITY.md` now documents that `haos_ai.scan` deliberately accepts an
+  unattributed call from an automation, and that panel threads are shared by
+  all administrators.
 - Fixed the panel's icon buttons. Home Assistant's `ha-icon-button` has no
   `icon` property — it renders a slotted `<ha-icon>` or a `path` — so every
   `icon="mdi:..."` button rendered blank. The new-conversation control in chat

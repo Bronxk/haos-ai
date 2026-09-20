@@ -55,3 +55,29 @@ def test_every_panel_key_used_in_the_panel_is_defined() -> None:
 
     missing = {key for key in used if key not in panel}
     assert not missing, f"undefined panel strings: {sorted(missing)}"
+
+
+def test_every_defined_panel_string_is_used() -> None:
+    """A key nothing references is dead weight in all three catalogs.
+
+    A key counts as used when it appears anywhere outside the fallback table,
+    which covers both ``this.t("key")`` and keys handed to a render helper as
+    a plain string. Only the outcome family is assembled at runtime and has no
+    literal occurrence to find.
+    """
+    source = PANEL_SOURCE.read_text(encoding="utf-8")
+    block = re.search(
+        r"const PANEL_STRINGS: Record<string, string> = \{.*?\n\};",
+        source,
+        re.S,
+    )
+    assert block is not None, "PANEL_STRINGS table not found"
+    body = source[: block.start()] + source[block.end() :]
+
+    unused = sorted(
+        key
+        for key in _panel_strings()
+        if not key.startswith("applied.outcome.") and f'"{key}"' not in body
+    )
+
+    assert not unused, f"panel strings defined but never used: {unused}"
