@@ -35,13 +35,20 @@ def _panel_strings() -> dict[str, str]:
     }
 
 
+def _flatten(panel: dict[str, str]) -> dict[str, str]:
+    """Map dotted panel keys onto the slug keys the catalog accepts."""
+    return {key.replace(".", "_"): value for key, value in panel.items()}
+
+
 def test_panel_strings_are_mirrored_in_both_catalogs() -> None:
-    panel = _panel_strings()
+    panel = _flatten(_panel_strings())
     assert panel, "the panel fallback table must not be empty"
 
+    # The panel reads its catalog strings from the "common" section, because
+    # hassfest rejects a bespoke top-level section for a custom panel.
     for path in (STRINGS, ENGLISH):
         catalog = json.loads(path.read_text(encoding="utf-8"))
-        assert catalog.get("panel") == panel, f"{path.name} is out of sync"
+        assert catalog.get("common") == panel, f"{path.name} is out of sync"
 
 
 def test_every_panel_key_used_in_the_panel_is_defined() -> None:

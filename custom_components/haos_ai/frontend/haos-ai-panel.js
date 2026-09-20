@@ -5066,8 +5066,8 @@ const Ha = [
   "action.cancel": "Cancel"
 };
 function Va(s, e) {
-  const t = s?.localize?.(`component.haos_ai.panel.${e}`);
-  return t && t !== `component.haos_ai.panel.${e}` ? t : Ya[e] ?? e;
+  const t = `component.haos_ai.common.${e.replaceAll(".", "_")}`, i = s?.localize?.(t);
+  return i && i !== t ? i : Ya[e] ?? e;
 }
 function Wa(s, e) {
   const t = s.replace(/\s+$/, "").split(`

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Fixed two hassfest failures the unreleased work had introduced: `blueprint`
+  is now declared in `after_dependencies`, and the panel strings moved out of a
+  bespoke `panel` translation section — which hassfest rejects — into the
+  `common` section, using slug keys. The panel lookup flattens its dotted keys
+  for that lookup, so localization still resolves through Home Assistant.
 - Hardened the approval path. Approvals are serialized, a suggestion that was
   already applied is refused instead of applied a second time, the operation is
   derived from the stored suggestion rather than chosen by the caller, and the

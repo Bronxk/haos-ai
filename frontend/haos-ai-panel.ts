@@ -377,8 +377,13 @@ const PANEL_STRINGS: Record<string, string> = {
 
 /** Read a panel string, preferring Home Assistant's translation catalog. */
 function panelString(hass: HomeAssistant | undefined, key: string): string {
-  const translated = hass?.localize?.(`component.haos_ai.panel.${key}`);
-  if (translated && translated !== `component.haos_ai.panel.${key}`) {
+  // The catalog only accepts slug keys, so a dotted panel key is flattened for
+  // the lookup while the compiled table keeps the readable dotted form. The
+  // section has to be a documented one: hassfest rejects unknown top-level
+  // sections such as a bespoke "panel".
+  const lookup = `component.haos_ai.common.${key.replaceAll(".", "_")}`;
+  const translated = hass?.localize?.(lookup);
+  if (translated && translated !== lookup) {
     return translated;
   }
   return PANEL_STRINGS[key] ?? key;

@@ -1,7 +1,7 @@
 {
   "domain": "haos_ai",
   "name": "HAOS AI",
-  "after_dependencies": ["automation", "hassio", "recorder"],
+  "after_dependencies": ["automation", "blueprint", "hassio", "recorder"],
   "codeowners": ["@Bronxk"],
   "config_flow": true,
   "dependencies": ["conversation", "frontend", "http", "persistent_notification", "websocket_api"],
