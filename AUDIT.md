@@ -15,8 +15,7 @@ description of it:
 
 - `ruff check custom_components tests qa scripts`
 - `python -m pytest -q`
-- `tsc --noEmit` and `vitest run` on the current toolchain majors
-  (TypeScript 7, Vitest 5, Vite 8, jsdom 30)
+- `tsc --noEmit` and `vitest run`
 - `vite build`, then a second build compared byte for byte against the first
   and against the committed bundle
 - `python scripts/release.py check` and `build`
@@ -73,8 +72,8 @@ Every finding below was found, fixed and verified in this cycle.
 
 - Ruff: pass, with the target set to Python 3.14.
 - Python: 62 tests pass.
-- TypeScript: pass on TypeScript 7.
-- Vitest: 10 tests pass on Vitest 5.
+- TypeScript: pass.
+- Vitest: 10 tests pass.
 - Panel bundle: a fresh build is byte-identical to the committed bundle, and
   two consecutive builds agree.
 - Browser: 6 widths × 2 themes with no overflow, no clipped element and no
@@ -97,8 +96,17 @@ Final candidate:
 
 ```text
 release/haos-ai-1.0.4.zip
-SHA-256 85dc64995c560ad6aa0549c12cfab487d08e4a956eaebe71f05f0cfb05d21251
+SHA-256 0609b501849f9f089a4338e616fcd64adcbe0fc7117a8a778375e386d570fb26
 ```
+
+## Deferred
+
+The grouped frontend dependency upgrade (Vite 8, Vitest 5, TypeScript 7,
+jsdom 30, `@types/node` 26, Playwright 1.63) is not part of this candidate.
+It type-checks, tests, builds and renders correctly on this machine under
+both Node 22 and Node 24, but the hosted `test` job fails at `npm run build`
+and its log is only readable with repository admin rights. The grouped
+Dependabot pull request stays open for a maintainer to investigate.
 
 ## Open external gates
 

@@ -17,10 +17,13 @@
   until the write settles, a pruned selection no longer strands mobile users on
   an empty list, a chat YAML block can always be copied, and the ignored-entity
   picker has a keyboard cursor with proper listbox wiring.
-- Moved the frontend toolchain to the current majors: TypeScript 7, Vitest 5,
-  Vite 8, jsdom 30, `@types/node` 26, Playwright 1.63 and `yaml` 2.9. The
-  Vitest config now imports `defineConfig` from `vitest/config`, because Vite 8
-  no longer types the `test` block.
+- The Vitest config imports `defineConfig` from `vitest/config`, which is the
+  supported import for a Vite project that also carries test settings.
+- The grouped frontend dependency majors (Vite 8, Vitest 5, TypeScript 7,
+  jsdom 30, `@types/node` 26, Playwright 1.63) are deliberately not part of this
+  release: they pass locally under Node 22 and Node 24 but the hosted `test` job
+  fails at `npm run build`, and its log needs repository admin rights to read.
+  The grouped Dependabot pull request remains open.
 - Updated the pinned GitHub Actions to `actions/checkout@v7`,
   `actions/setup-python@v7`, `actions/setup-node@v7` and the current hassfest.
 - Fixed two hassfest failures the unreleased work had introduced: `blueprint`
