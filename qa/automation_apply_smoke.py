@@ -325,6 +325,22 @@ async def main() -> None:
     assert connection.error[1] == "already_applied", connection.error
     assert len(await async_read_automations(hass)) == before + 1
 
+    # 7. Update targets are limited to what automations.yaml can rewrite: an
+    #    automation loaded from a package or other file is not a valid target.
+    from custom_components.haos_ai.context import ContextEngine
+
+    file_ids = {str(row["id"]) for row in await async_read_automations(hass)}
+    assert file_ids
+    engine = ContextEngine(hass)
+    with patch.object(
+        ContextEngine,
+        "automation_ids",
+        return_value=file_ids | {"package_only_automation"},
+    ):
+        editable = await engine.async_editable_automation_ids()
+    assert editable == file_ids, editable
+    assert "package_only_automation" not in editable
+
     await hass.async_stop(force=True)
     print("Automation apply smoke test OK")
 

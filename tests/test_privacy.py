@@ -121,3 +121,30 @@ def test_ignored_entities_are_removed_from_nested_context() -> None:
         "results": [{"entity_id": "light.keep", "state": "on"}],
         "candidate_ids": ["light.keep"],
     }
+
+
+def test_address_and_gps_attributes_follow_exact_location_setting() -> None:
+    payload = {
+        "thoroughfare": "Example Street",
+        "postal_code": "10115",
+        "locality": "Berlin",
+        "sub_locality": "Mitte",
+        "street": "Example Street 12",
+        "administrative_area": "Berlin",
+        "country": "Germany",
+        "iso_country_code": "DE",
+        "gps_position": [52.5, 13.4],
+        "friendly_name": "Phone geocoded location",
+        "source_type": "gps",
+        "unit_of_measurement": "C",
+    }
+    cleaned, paths = sanitize(payload)
+    for key in payload:
+        if key in {"friendly_name", "source_type", "unit_of_measurement"}:
+            assert cleaned[key] == payload[key], key
+        else:
+            assert cleaned[key] == "[REDACTED]", key
+            assert key in paths
+    kept, kept_paths = sanitize(payload, include_exact_location=True)
+    assert kept == payload
+    assert kept_paths == []

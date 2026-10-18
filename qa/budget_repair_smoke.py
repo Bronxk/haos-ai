@@ -56,6 +56,9 @@ class FakeContext:
     def automation_ids(self):
         return set()
 
+    async def async_editable_automation_ids(self):
+        return set()
+
     def hygiene_candidates(self):
         return {}
 

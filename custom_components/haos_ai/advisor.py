@@ -553,8 +553,9 @@ class Advisor:
         if not isinstance(raw_items, list):
             raise ProviderResponseError("recommendations must be an array")
         recommendations: list[Recommendation] = []
-        # The full, exclusion-aware set, not the 50-row window the model sees.
-        known_automation_ids = self.context.automation_ids()
+        # The full, exclusion-aware set of automations that approval can edit
+        # (those in automations.yaml), not the 50-row window the model sees.
+        known_automation_ids = await self.context.async_editable_automation_ids()
         local_candidates = self.context.hygiene_candidates()
         removable_entity_ids = {
             str(item.get("entity_id"))

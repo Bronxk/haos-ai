@@ -3,15 +3,22 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import datetime
 from typing import Any
 
 
 def summarize_states(
-    states: Iterable[Any], *, max_samples: int = 12
+    states: Iterable[Any],
+    *,
+    max_samples: int = 12,
+    state_filter: Callable[[str], str] | None = None,
 ) -> dict[str, Any]:
-    """Summarize a chronological sequence of HA State-like objects."""
+    """Summarize a chronological sequence of HA State-like objects.
+
+    ``state_filter`` maps every raw state value before it is counted, so a
+    caller can withhold sensitive values such as a street address.
+    """
     sequence = list(states)
     if not sequence:
         return {
@@ -30,6 +37,8 @@ def summarize_states(
     examples: list[dict[str, Any]] = []
     for state in sequence:
         value = str(getattr(state, "state", "unknown"))
+        if state_filter is not None:
+            value = state_filter(value)
         changed: datetime | None = getattr(
             state, "last_changed", getattr(state, "last_updated", None)
         )
@@ -58,6 +67,7 @@ def summarize_states(
     }
 
 
+# Not wired into any production path yet (see AUDIT follow-up); kept with its tests.
 def rank_binary_correlations(
     event_times: dict[str, list[datetime]],
     *,

@@ -42,6 +42,21 @@ async def main() -> None:
         "off",
         {"friendly_name": "Kitchen", "latitude": 51.0, "api_key": "secret"},
     )
+    address = "12 Example Street, Berlin"
+    hass.states.async_set(
+        "sensor.phone_geocoded_location",
+        address,
+        {
+            "friendly_name": "Phone geocoded location",
+            "name": "Example Street",
+            "thoroughfare": "Example Street",
+            "postal_code": "10115",
+            "locality": "Berlin",
+        },
+    )
+    hass.states.async_set("sensor.temperature", "21.5", {"unit_of_measurement": "C"})
+    hass.states.async_set("sensor.living_room_mood", "cozy", {})
+    hass.states.async_set("zone.home", "0", {"friendly_name": "Home"})
     for index in range(101):
         hass.states.async_set(f"sensor.unavailable_{index}", "unavailable")
     before_states = {
@@ -52,7 +67,7 @@ async def main() -> None:
     before_device_count = len(dr.async_get(hass).devices)
     engine = ContextEngine(hass)
     preview = await engine.async_baseline_preview()
-    assert preview["payload"]["home_summary"]["counts"]["states"] == 102
+    assert preview["payload"]["home_summary"]["counts"]["states"] == 106
     candidates = preview["payload"]["local_candidates"]
     assert candidates["counts"]["unavailable"] == 101
     assert len(candidates["unavailable_entities"]) == 100
@@ -68,6 +83,63 @@ async def main() -> None:
     )
     assert detail["data"]["attributes"]["latitude"] == "[REDACTED]"
     assert detail["data"]["attributes"]["api_key"] == "[REDACTED]"
+    # Exact location OFF: the address state and address attributes are withheld
+    # everywhere, and the redaction is reported. Ordinary sensors are untouched.
+    geo = "sensor.phone_geocoded_location"
+    found = await engine.async_execute_tool(
+        "search_entities", {"query": "", "domain": "sensor", "area_id": None}, {}
+    )
+    rows = {row["entity_id"]: row for row in found["data"]["results"]}
+    assert rows[geo]["state"] == "[REDACTED]"
+    assert rows["sensor.temperature"]["state"] == "21.5"
+    assert rows["sensor.living_room_mood"]["state"] == "cozy"
+    assert f"{geo}.state" in found["privacy"]["redacted_fields"]
+    assert "Example Street" not in str(found["data"])
+    probe = await engine.async_execute_tool(
+        "search_entities", {"query": "berlin", "domain": None, "area_id": None}, {}
+    )
+    assert probe["data"]["results"] == []
+    geo_detail = await engine.async_execute_tool(
+        "get_entity_detail", {"entity_id": geo}, {}
+    )
+    assert geo_detail["data"]["state"] == "[REDACTED]"
+    for key in ("thoroughfare", "postal_code", "locality", "name"):
+        assert geo_detail["data"]["attributes"][key] == "[REDACTED]", key
+    assert "Berlin" not in str(geo_detail["data"])
+    temp_detail = await engine.async_execute_tool(
+        "get_entity_detail", {"entity_id": "sensor.temperature"}, {}
+    )
+    assert temp_detail["data"]["state"] == "21.5"
+    assert temp_detail["data"]["attributes"]["unit_of_measurement"] == "C"
+    zone_detail = await engine.async_execute_tool(
+        "get_entity_detail", {"entity_id": "zone.home"}, {}
+    )
+    assert zone_detail["data"]["attributes"]["friendly_name"] == "Home"
+    # Exact location ON: everything is kept.
+    open_engine = ContextEngine(hass, include_exact_location=True)
+    open_detail = await open_engine.async_execute_tool(
+        "get_entity_detail", {"entity_id": geo}, {}
+    )
+    assert open_detail["data"]["state"] == address
+    assert open_detail["data"]["attributes"]["locality"] == "Berlin"
+    open_found = await open_engine.async_execute_tool(
+        "search_entities", {"query": "berlin", "domain": None, "area_id": None}, {}
+    )
+    assert [r["entity_id"] for r in open_found["data"]["results"]] == [geo]
+    # History summaries redact the address state too (recorder is not running,
+    # so exercise the shared filter with State-like rows directly).
+    from types import SimpleNamespace
+
+    from custom_components.haos_ai.history import summarize_states
+
+    summary = summarize_states(
+        [SimpleNamespace(state=address), SimpleNamespace(state="unavailable")],
+        state_filter=lambda value: engine._redact_location_state(
+            geo, hass.states.get(geo).attributes, value
+        ),
+    )
+    assert summary["state_counts"] == {"[REDACTED]": 1, "unavailable": 1}
+    assert "Example" not in str(summary)
     after_states = {
         state.entity_id: (state.state, dict(state.attributes))
         for state in hass.states.async_all()

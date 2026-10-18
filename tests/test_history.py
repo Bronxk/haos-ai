@@ -49,3 +49,13 @@ def test_correlations_require_repeat_evidence() -> None:
     assert matches[0]["left"] == "binary_sensor.door"
     assert matches[0]["right"] == "light.hall"
     assert matches[0]["score"] == 1.0
+
+
+def test_summarize_states_applies_state_filter_before_counting() -> None:
+    rows = [
+        FakeState("12 Example Street, Berlin", datetime(2026, 1, 1, tzinfo=UTC)),
+        FakeState("12 Example Street, Berlin", datetime(2026, 1, 2, tzinfo=UTC)),
+    ]
+    summary = summarize_states(rows, state_filter=lambda _value: "[REDACTED]")
+    assert summary["state_counts"] == {"[REDACTED]": 2}
+    assert "Example" not in str(summary)

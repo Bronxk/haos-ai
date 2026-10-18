@@ -32,7 +32,29 @@ LOCATION_KEYS = frozenset(
         "location",
     }
 )
+# Address-like attributes (for example from a geocoded location sensor) reveal
+# where the home or a person is just like coordinates do.
+ADDRESS_KEYS = frozenset(
+    {
+        "administrative_area",
+        "areas_of_interest",
+        "country",
+        "formatted_address",
+        "iso_country_code",
+        "locality",
+        "postal_address",
+        "postal_code",
+        "street",
+        "street_address",
+        "sub_administrative_area",
+        "sub_locality",
+        "sub_thoroughfare",
+        "thoroughfare",
+        "zip_code",
+    }
+)
 SAFE_LOCATION_KEYS = frozenset({"source_type"})
+REDACTION_MARKER = "[REDACTED]"
 URL_CREDENTIALS_RE = re.compile(r"(https?://)([^/@:\s]+):([^/@\s]+)@", re.I)
 BEARER_RE = re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]+", re.I)
 SECRET_ASSIGNMENT_RE = re.compile(
@@ -73,7 +95,10 @@ def _is_sensitive_key(key: str, include_exact_location: bool) -> bool:
     normalized = key.casefold()
     if normalized in SAFE_LOCATION_KEYS:
         return False
-    if normalized in LOCATION_KEYS:
+    if normalized in LOCATION_KEYS or normalized in ADDRESS_KEYS:
+        return not include_exact_location
+    if normalized.startswith("gps") and normalized != "gps_accuracy":
+        # gps, gps_position, gps_coordinates and similar variants.
         return not include_exact_location
     return any(part in normalized for part in SENSITIVE_KEY_PARTS)
 

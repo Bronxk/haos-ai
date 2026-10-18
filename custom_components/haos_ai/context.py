@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from datetime import timedelta
 from typing import Any
 
@@ -29,8 +29,14 @@ from homeassistant.helpers import (
 )
 from homeassistant.util import dt as dt_util
 
+from .automation_store import async_read_automations
 from .history import summarize_states
-from .privacy import exclude_ignored_entities, sanitize
+from .privacy import (
+    ADDRESS_KEYS,
+    REDACTION_MARKER,
+    exclude_ignored_entities,
+    sanitize,
+)
 from .providers.base import ToolSpec
 
 _LOGGER = logging.getLogger(__name__)
@@ -51,6 +57,10 @@ STATE_DOMAINS_WITHOUT_ROUTINES = frozenset(
     }
 )
 SENSITIVE_DOMAINS = frozenset({"alarm_control_panel", "camera"})
+# Entity-id fragments that mark a sensor whose free-text STATE is an address
+# or place description (for example the Companion App geocoded location).
+LOCATION_TEXT_MARKERS = ("geocoded", "address", "location")
+STATES_WITHOUT_VALUE = frozenset({"unknown", "unavailable", "none", ""})
 
 # The model-facing automation listing is capped so a huge installation cannot
 # flood one tool result. Internal checks must not rely on this window.
@@ -106,6 +116,54 @@ class ContextEngine:
         self.include_exact_location = include_exact_location
         self.outbound_trace: list[dict[str, Any]] = []
         self.exclusions: set[str] = set()
+        # Redactions made by this engine outside sanitize(), merged into the
+        # privacy report so the receipt stays complete.
+        self._state_redactions: list[str] = []
+        self._warned: set[str] = set()
+
+    def _warn_once(self, key: str, message: str, err: Exception) -> None:
+        """Log a degraded-context failure visibly, once per engine."""
+        if key in self._warned:
+            return
+        self._warned.add(key)
+        _LOGGER.warning("%s: %s: %s", message, type(err).__name__, err)
+
+    @staticmethod
+    def _is_numeric(value: str) -> bool:
+        try:
+            float(value)
+        except ValueError:
+            return False
+        return True
+
+    def _is_location_text_entity(
+        self, entity_id: str, attributes: Mapping[str, Any]
+    ) -> bool:
+        """Return whether an entity's state is likely a place or address."""
+        domain, _, object_id = entity_id.partition(".")
+        if domain == "zone":
+            return False
+        if any(marker in object_id.casefold() for marker in LOCATION_TEXT_MARKERS):
+            return True
+        return any(str(key).casefold() in ADDRESS_KEYS for key in attributes)
+
+    def _redact_location_state(
+        self, entity_id: str, attributes: Mapping[str, Any], value: str
+    ) -> str:
+        """Withhold a free-text address state unless exact location is on."""
+        if self.include_exact_location:
+            return value
+        if value.casefold() in STATES_WITHOUT_VALUE or self._is_numeric(value):
+            return value
+        if not self._is_location_text_entity(entity_id, attributes):
+            return value
+        self._state_redactions.append(f"{entity_id}.state")
+        return REDACTION_MARKER
+
+    def _merge_redactions(self, redactions: list[str]) -> list[str]:
+        merged = sorted(set(redactions) | set(self._state_redactions))
+        self._state_redactions = []
+        return merged
 
     def set_exclusions(self, preferences: dict[str, Any]) -> set[str]:
         """Resolve every ignore scope into concrete identifiers to withhold.
@@ -255,6 +313,7 @@ class ContextEngine:
     ) -> dict[str, Any]:
         """Execute a known read-only tool and keep a local outbound trace."""
         ignored = self.set_exclusions(preferences)
+        self._state_redactions = []
         requested_entity = str(arguments.get("entity_id", ""))
         if requested_entity in ignored and name in {
             "get_entity_detail",
@@ -300,7 +359,7 @@ class ContextEngine:
         )
         result = {
             "data": cleaned,
-            "privacy": {"redacted_fields": redactions},
+            "privacy": {"redacted_fields": self._merge_redactions(redactions)},
         }
         self.outbound_trace.append(
             {"tool": name, "arguments": arguments, "result": result}
@@ -383,14 +442,18 @@ class ContextEngine:
                 if entry
                 else state.attributes.get("friendly_name")
             ) or state.entity_id
-            haystack = f"{state.entity_id} {name} {state.state}".casefold()
+            shown_state = self._redact_location_state(
+                state.entity_id, state.attributes, state.state
+            )
+            # Match on the redacted value so a query cannot probe the address.
+            haystack = f"{state.entity_id} {name} {shown_state}".casefold()
             if query and query not in haystack:
                 continue
             rows.append(
                 {
                     "entity_id": state.entity_id,
                     "name": name,
-                    "state": state.state,
+                    "state": shown_state,
                     "domain": state_domain,
                     "area_id": entity_area,
                     "device_id": entry.device_id if entry else None,
@@ -423,9 +486,24 @@ class ContextEngine:
                 for key, value in attributes.items()
                 if key in {"friendly_name", "device_class", "supported_features"}
             }
+        if (
+            state
+            and not self.include_exact_location
+            and "name" in attributes
+            and self._is_location_text_entity(entity_id, attributes)
+        ):
+            # A geocoded sensor's name attribute is the place name or street.
+            attributes["name"] = REDACTION_MARKER
+            self._state_redactions.append(f"{entity_id}.attributes.name")
         return {
             "entity_id": entity_id,
-            "state": state.state if state else None,
+            "state": (
+                self._redact_location_state(
+                    entity_id, state.attributes, state.state
+                )
+                if state
+                else None
+            ),
             "last_changed": state.last_changed.isoformat() if state else None,
             "attributes": attributes,
             "registry": (
@@ -481,7 +559,7 @@ class ContextEngine:
 
             apps = get_apps_list(self.hass)
         except Exception as err:
-            _LOGGER.debug("Supervisor app context is unavailable", exc_info=True)
+            self._warn_once("apps", "Supervisor app context is unavailable", err)
             return {"available": False, "reason": type(err).__name__, "apps": []}
         rows = []
         for app in apps or []:
@@ -528,16 +606,18 @@ class ContextEngine:
 
             domain_blueprints = self.hass.data.get(BLUEPRINT_DOMAIN) or {}
         except Exception as err:
-            _LOGGER.debug("Blueprint context is unavailable", exc_info=True)
+            self._warn_once("blueprints", "Blueprint context is unavailable", err)
             return {"available": False, "reason": type(err).__name__, "blueprints": []}
 
         rows: list[dict[str, Any]] = []
         for domain, store in domain_blueprints.items():
             try:
                 blueprints = await store.async_get_blueprints()
-            except Exception:
-                _LOGGER.debug(
-                    "Could not list %s blueprints", domain, exc_info=True
+            except Exception as err:
+                self._warn_once(
+                    f"blueprints:{domain}",
+                    f"Could not list {domain} blueprints",
+                    err,
                 )
                 continue
             for path, blueprint in (blueprints or {}).items():
@@ -589,11 +669,22 @@ class ContextEngine:
         # filler word instead of omitting the filter. Treat those as "no
         # filter" rather than as a literal substring that can never match,
         # which used to make this tool silently report an empty home.
+        rows: list[dict[str, Any]] = []
+        truncated = False
+        for row in self._iter_automation_rows(component, query):
+            if len(rows) >= MAX_AUTOMATION_ROWS:
+                truncated = True
+                break
+            rows.append(row)
+        return {"automations": rows, "available": True, "truncated": truncated}
+
+    def _iter_automation_rows(
+        self, component: Any, query: str = ""
+    ) -> Iterator[dict[str, Any]]:
+        """Yield every non-excluded automation row, uncapped."""
         query = query.casefold().strip()
         if query in {"", "*", "all"}:
             query = ""
-        rows: list[dict[str, Any]] = []
-        truncated = False
         for automation in component.entities:
             raw = automation.raw_config
             if not raw or self._is_excluded(automation.entity_id):
@@ -601,21 +692,15 @@ class ContextEngine:
             name = automation.name or automation.entity_id
             if query and query not in f"{name} {automation.entity_id}".casefold():
                 continue
-            rows.append(
-                {
-                    "entity_id": automation.entity_id,
-                    "name": name,
-                    "enabled": automation.is_on,
-                    "config": dict(raw),
-                    "referenced_entities": sorted(automation.referenced_entities),
-                    "referenced_devices": sorted(automation.referenced_devices),
-                    "referenced_areas": sorted(automation.referenced_areas),
-                }
-            )
-            if len(rows) >= MAX_AUTOMATION_ROWS:
-                truncated = True
-                break
-        return {"automations": rows, "available": True, "truncated": truncated}
+            yield {
+                "entity_id": automation.entity_id,
+                "name": name,
+                "enabled": automation.is_on,
+                "config": dict(raw),
+                "referenced_entities": sorted(automation.referenced_entities),
+                "referenced_devices": sorted(automation.referenced_devices),
+                "referenced_areas": sorted(automation.referenced_areas),
+            }
 
     def automation_ids(self) -> set[str]:
         """Return every automation config id, honouring the ignore scopes.
@@ -636,6 +721,28 @@ class ContextEngine:
             if automation_id := raw.get("id"):
                 identifiers.add(str(automation_id))
         return identifiers
+
+    async def async_editable_automation_ids(self) -> set[str]:
+        """Return the ids of automations that approval can actually rewrite.
+
+        Apply reads and writes only ``automations.yaml``. Automations declared
+        in packages or other YAML files are loaded and visible, but an update
+        targeting one would fail at approval, so they are not valid update
+        targets.
+        """
+        loaded = self.automation_ids()
+        try:
+            stored = await async_read_automations(self.hass)
+        except Exception as err:
+            self._warn_once(
+                "automation_file",
+                "Could not read the UI automation file; no automation is "
+                "offered as an update target",
+                err,
+            )
+            return set()
+        file_ids = {str(item["id"]) for item in stored if item.get("id")}
+        return loaded & file_ids
 
     def is_verified_source(self, source_type: str, source_id: str) -> bool:
         """Return whether a cited evidence source exists in this installation.
@@ -707,13 +814,22 @@ class ContextEngine:
 
             result = await instance.async_add_executor_job(fetch)
             states = result.get(entity_id, [])
+            current = self.hass.states.get(entity_id)
+            attributes = current.attributes if current else {}
             return {
                 "entity_id": entity_id,
                 "days": days,
-                "summary": summarize_states(states),
+                "summary": summarize_states(
+                    states,
+                    state_filter=lambda value: self._redact_location_state(
+                        entity_id, attributes, value
+                    ),
+                ),
             }
         except Exception as err:
-            _LOGGER.debug("Recorder history context is unavailable", exc_info=True)
+            self._warn_once(
+                "recorder", "Recorder history context is unavailable", err
+            )
             return {
                 "entity_id": entity_id,
                 "available": False,
@@ -796,7 +912,12 @@ class ContextEngine:
                     }
                 )
         missing_refs: list[dict[str, str]] = []
-        automation_rows = self.automations().get("automations", [])
+        component = self.hass.data.get(AUTOMATION_COMPONENT)
+        # Not the capped model-facing window: a broken reference in the 51st
+        # automation must still be found.
+        automation_rows = (
+            self._iter_automation_rows(component) if component is not None else ()
+        )
         for automation in automation_rows:
             for referenced in automation["referenced_entities"]:
                 if referenced not in states and registry.async_get(referenced) is None:
@@ -828,6 +949,7 @@ class ContextEngine:
         # Registry and state-machine access must remain on Home Assistant's
         # event loop. Only recorder's synchronous query is delegated by its
         # own API in async_history_summary.
+        self._state_redactions = []
         home = self.home_summary()
         candidates = self.hygiene_candidates()
         integrations = self.integrations()
@@ -849,4 +971,4 @@ class ContextEngine:
         cleaned, redactions = sanitize(
             payload, include_exact_location=self.include_exact_location
         )
-        return {"payload": cleaned, "redactions": redactions}
+        return {"payload": cleaned, "redactions": self._merge_redactions(redactions)}
