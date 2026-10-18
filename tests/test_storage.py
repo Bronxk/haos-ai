@@ -168,3 +168,36 @@ def test_clear_suggestions_can_target_one_view() -> None:
 
     assert store.clear_suggestions("new") == 1
     assert [item["title"] for item in store.data["suggestions"]] == ["Saved"]
+
+
+def test_migrate_applied_markers_backfills_legacy_suggestions() -> None:
+    store = AdvisorStore.__new__(AdvisorStore)
+    store.data = default_data()
+    store.data["suggestions"] = [
+        {"id": "ledger", "status": "saved"},
+        {"id": "bookmark", "status": "saved"},
+        {"id": "fresh", "status": "new"},
+        {
+            "id": "marked",
+            "status": "saved",
+            "applied_at": "T",
+            "applied_change_id": "c",
+        },
+    ]
+    store.data["applied_changes"] = [
+        {
+            "id": "chg-1",
+            "suggestion_id": "ledger",
+            "applied_at": "2026-01-01T00:00:00+00:00",
+        }
+    ]
+    store._migrate_applied_markers()
+    store._migrate_applied_markers()  # idempotent
+    by_id = {item["id"]: item for item in store.data["suggestions"]}
+    assert by_id["ledger"]["applied_change_id"] == "chg-1"
+    assert by_id["ledger"]["applied_at"] == "2026-01-01T00:00:00+00:00"
+    assert by_id["bookmark"]["applied_change_id"] == "legacy-unknown"
+    assert not by_id["bookmark"].get("applied_at")
+    assert not by_id["fresh"].get("applied_change_id")
+    assert by_id["marked"]["applied_at"] == "T"
+    assert by_id["marked"]["applied_change_id"] == "c"

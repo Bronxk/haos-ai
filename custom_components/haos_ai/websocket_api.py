@@ -51,7 +51,7 @@ from .const import (
     SCHEDULES,
 )
 from .context import device_config_entry_ids
-from .models import AppliedChange, RecommendationStatus
+from .models import AppliedChange, RecommendationStatus, utcnow_iso
 from .providers import create_provider
 from .providers.base import ProviderAuthError, ProviderError, normalize_base_url
 from .runtime import HaosAIRuntime
@@ -334,7 +334,7 @@ async def _async_apply_automation(
             )
         automation_id = uuid.uuid4().hex
 
-    replaced = await async_save_automation(hass, automation_id, config)
+    replaced, reload_failed = await async_save_automation(hass, automation_id, config)
     applied = runtime.store.record_applied_change(
         AppliedChange(
             kind=operation_type,
@@ -345,13 +345,17 @@ async def _async_apply_automation(
             config_hash=_config_hash(config),
         )
     )
-    return {
+    result: dict[str, Any] = {
         "applied": True,
         "operation": operation_type,
         "automation_id": automation_id,
         "replaced": replaced,
         "applied_change": applied,
     }
+    if reload_failed:
+        # The file is written; only the live reload failed (see the log).
+        result["reload_failed"] = True
+    return result
 
 
 @websocket_api.websocket_command(
@@ -378,15 +382,6 @@ async def ws_change_apply(
     suggestion = runtime.store.get_suggestion(msg["suggestion_id"])
     if suggestion is None:
         connection.send_error(msg["id"], "not_found", "Suggestion not found")
-        return
-    if str(suggestion.get("status", "")) == "saved":
-        # Approval is not idempotent: replaying the request must not create a
-        # second automation or remove a second registry entry.
-        connection.send_error(
-            msg["id"],
-            "already_applied",
-            "This suggestion was already applied; run a new scan",
-        )
         return
 
     operation = suggestion.get("operation")
@@ -432,9 +427,50 @@ async def ws_change_apply(
     # One approval at a time: two concurrent approvals used to read the same
     # automation file, and the last writer silently discarded the other change.
     async with runtime.operation_lock:
+        # The suggestion may have been cleared while this request waited.
+        suggestion = runtime.store.get_suggestion(msg["suggestion_id"])
+        if suggestion is None:
+            connection.send_error(msg["id"], "not_found", "Suggestion not found")
+            return
+        # "saved" only means bookmarked, so the applied state is read from the
+        # suggestion's own marker and the ledger, checked under the lock so a
+        # concurrent replay cannot slip past.
+        if _is_already_applied(runtime, suggestion):
+            connection.send_error(
+                msg["id"],
+                "already_applied",
+                "This suggestion was already applied. Dismiss it, or wait for "
+                "a scan to propose a different change.",
+            )
+            return
         await _async_apply_change(
             hass, connection, msg, runtime, suggestion, operation_type, target_id
         )
+
+
+def _is_already_applied(
+    runtime: HaosAIRuntime, suggestion: dict[str, Any]
+) -> bool:
+    """Return whether an approval for this suggestion was already written."""
+    if suggestion.get("applied_at") or suggestion.get("applied_change_id"):
+        return True
+    suggestion_id = str(suggestion.get("id", ""))
+    return any(
+        str(item.get("suggestion_id") or "") == suggestion_id
+        for item in runtime.store.data.get("applied_changes", [])
+    )
+
+
+def _mark_applied(
+    runtime: HaosAIRuntime,
+    suggestion_id: str,
+    suggestion: dict[str, Any],
+    applied: dict[str, Any],
+) -> None:
+    """Bookmark the suggestion and persist that it was applied."""
+    runtime.store.update_suggestion(suggestion_id, "saved")
+    suggestion["applied_at"] = str(applied.get("applied_at") or utcnow_iso())
+    suggestion["applied_change_id"] = applied.get("id")
 
 
 async def _async_apply_change(
@@ -461,7 +497,9 @@ async def _async_apply_change(
             result = await _async_apply_automation(
                 hass, runtime, suggestion, operation_type, config
             )
-            runtime.store.update_suggestion(msg["suggestion_id"], "saved")
+            _mark_applied(
+                runtime, msg["suggestion_id"], suggestion, result["applied_change"]
+            )
             await runtime.store.async_save()
             connection.send_result(msg["id"], result)
             return
@@ -532,7 +570,7 @@ async def _async_apply_change(
                 suggestion_title=str(suggestion.get("title", ""))[:120],
             )
         )
-        runtime.store.update_suggestion(msg["suggestion_id"], "saved")
+        _mark_applied(runtime, msg["suggestion_id"], suggestion, applied)
         await runtime.store.async_save()
         connection.send_result(
             msg["id"],

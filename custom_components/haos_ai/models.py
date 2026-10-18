@@ -105,6 +105,9 @@ class Recommendation:
     dismissal_reason: str | None = None
     occurrences: int = 1
     last_seen_at: str = field(default_factory=utcnow_iso)
+    # Set once an approval was written; independent of the bookmark status.
+    applied_at: str | None = None
+    applied_change_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -164,6 +167,14 @@ class Recommendation:
                 data.get("last_seen_at")
                 or data.get("created_at")
                 or utcnow_iso()
+            ),
+            applied_at=(
+                str(data["applied_at"]) if data.get("applied_at") else None
+            ),
+            applied_change_id=(
+                str(data["applied_change_id"])
+                if data.get("applied_change_id")
+                else None
             ),
         )
 

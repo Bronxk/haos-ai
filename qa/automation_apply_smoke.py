@@ -13,6 +13,7 @@ import os
 import sys
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import patch
 
 from homeassistant import bootstrap, loader
 from homeassistant.core import HomeAssistant
@@ -200,6 +201,24 @@ async def main() -> None:
     assert connection.error[1] == "already_applied", connection.error
     assert len(await async_read_automations(hass)) == 1
 
+    # 2b. The applied marker is persisted on the suggestion and links the ledger.
+    assert item["applied_at"], item
+    assert item["applied_change_id"] == ledger[0]["id"], item
+    assert payload["applied_change"]["id"] == item["applied_change_id"]
+
+    # 2c. Dismiss -> restore must not make an applied suggestion approvable.
+    store.update_suggestion("create-1", "dismissed")
+    store.update_suggestion("create-1", "new")
+    ledger_len = len(store.data["applied_changes"])
+    await invoke(
+        hass, connection, "create-1", operation="create_automation", config=VALID
+    )
+    assert connection.error is not None
+    assert connection.error[1] == "already_applied", connection.error
+    assert len(await async_read_automations(hass)) == 1
+    assert len(store.data["applied_changes"]) == ledger_len
+    assert item["applied_at"] and item["applied_change_id"]
+
     # 3. An update needs a target that still exists.
     missing = suggestion("update-missing", target_id="does-not-exist")
     install(hass, missing)
@@ -243,6 +262,68 @@ async def main() -> None:
     stored = await async_read_automations(hass)
     assert len(stored) == 1, stored
     assert stored[0]["alias"] == "Hall light v2"
+
+    # 8. A merely bookmarked ("saved") suggestion can still be approved.
+    before = len(await async_read_automations(hass))
+    marked = suggestion("bookmarked-1")
+    marked["status"] = "saved"
+    mark_store = install(hass, marked)
+    await invoke(
+        hass, connection, "bookmarked-1", operation="create_automation", config=VALID
+    )
+    assert connection.error is None, connection.error
+    assert connection.result is not None
+    assert len(await async_read_automations(hass)) == before + 1
+    assert marked["applied_at"], marked
+    assert marked["applied_change_id"] == mark_store.data["applied_changes"][0]["id"]
+
+    # 9. Legacy data: a suggestion without markers but with a ledger entry is
+    # refused (ledger fallback in the apply path).
+    before = len(await async_read_automations(hass))
+    legacy = suggestion("legacy-1")
+    legacy_store = install(hass, legacy)
+    legacy_store.data["applied_changes"] = [
+        {
+            "id": "old-change",
+            "suggestion_id": "legacy-1",
+            "applied_at": "2026-01-01T00:00:00+00:00",
+        }
+    ]
+    await invoke(
+        hass, connection, "legacy-1", operation="create_automation", config=VALID
+    )
+    assert connection.error is not None
+    assert connection.error[1] == "already_applied", connection.error
+    assert len(await async_read_automations(hass)) == before
+    assert len(legacy_store.data["applied_changes"]) == 1
+
+    # 10. A reload failure after the file write still records ledger + marker,
+    # so a retry cannot create a second automation.
+    before = len(await async_read_automations(hass))
+    flaky = suggestion("reload-fail-1")
+    flaky_store = install(hass, flaky)
+    with patch.object(
+        type(hass.services), "async_call", side_effect=RuntimeError("reload boom")
+    ):
+        await invoke(
+            hass,
+            connection,
+            "reload-fail-1",
+            operation="create_automation",
+            config=VALID,
+        )
+    assert connection.error is None, connection.error
+    assert connection.result is not None
+    assert connection.result[1]["reload_failed"] is True, connection.result
+    assert len(await async_read_automations(hass)) == before + 1
+    assert flaky["applied_at"] and flaky["applied_change_id"], flaky
+    assert len(flaky_store.data["applied_changes"]) == 1
+    await invoke(
+        hass, connection, "reload-fail-1", operation="create_automation", config=VALID
+    )
+    assert connection.error is not None
+    assert connection.error[1] == "already_applied", connection.error
+    assert len(await async_read_automations(hass)) == before + 1
 
     await hass.async_stop(force=True)
     print("Automation apply smoke test OK")

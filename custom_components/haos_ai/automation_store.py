@@ -9,6 +9,7 @@ of in the browser.
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
 
@@ -19,6 +20,8 @@ from homeassistant.util.yaml import dump as yaml_dump
 from homeassistant.util.yaml import load_yaml
 
 from .const import AUTOMATION_CONFIG_FILE
+
+_LOGGER = logging.getLogger(__name__)
 
 AUTOMATION_DOMAIN = "automation"
 
@@ -62,10 +65,12 @@ async def async_get_automation(
 
 async def async_save_automation(
     hass: HomeAssistant, automation_id: str, config: dict[str, Any]
-) -> bool:
+) -> tuple[bool, bool]:
     """Create or replace one automation, then reload the automation platform.
 
-    Returns whether an existing automation was replaced.
+    Returns ``(replaced, reload_failed)``. Once the file is written the change
+    is real, so a failing reload is logged and reported instead of raised;
+    raising would skip the ledger entry and let a retry create a duplicate.
     """
     path = _config_path(hass)
     current = await hass.async_add_executor_job(_read, path)
@@ -86,7 +91,15 @@ async def async_save_automation(
         current.append(updated)
 
     await hass.async_add_executor_job(_write, path, current)
-    await hass.services.async_call(
-        AUTOMATION_DOMAIN, SERVICE_RELOAD, blocking=True
-    )
-    return replaced
+    reload_failed = False
+    try:
+        await hass.services.async_call(
+            AUTOMATION_DOMAIN, SERVICE_RELOAD, blocking=True
+        )
+    except Exception:
+        reload_failed = True
+        _LOGGER.exception(
+            "Automation %s was written but the automation reload failed",
+            automation_id,
+        )
+    return replaced, reload_failed

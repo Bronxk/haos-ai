@@ -181,7 +181,31 @@ class AdvisorStore:
                 for item in loaded.get("applied_changes", [])
                 if isinstance(item, dict)
             ]
+        self._migrate_applied_markers()
         self._prune()
+
+    def _migrate_applied_markers(self) -> None:
+        """Backfill applied markers on suggestions approved before they existed.
+
+        Idempotent: suggestions that already carry a marker are left alone.
+        """
+        ledger = {
+            str(entry.get("suggestion_id")): entry
+            for entry in self.data.get("applied_changes", [])
+            if isinstance(entry, dict) and entry.get("suggestion_id")
+        }
+        for item in self.data.get("suggestions", []):
+            if not isinstance(item, dict):
+                continue
+            if item.get("applied_at") or item.get("applied_change_id"):
+                continue
+            if entry := ledger.get(str(item.get("id", ""))):
+                item["applied_at"] = entry.get("applied_at")
+                item["applied_change_id"] = entry.get("id")
+            elif item.get("status") == "saved":
+                # Cannot tell a bookmark from an applied one: stay locked, as
+                # before, without inventing a timestamp.
+                item["applied_change_id"] = "legacy-unknown"
 
     async def async_save(self) -> None:
         self._prune()
