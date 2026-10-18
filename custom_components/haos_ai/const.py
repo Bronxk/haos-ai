@@ -132,3 +132,8 @@ DEFAULT_CHANGE_PERMISSIONS: Final = {
 DEFAULT_MONTHLY_TOKEN_BUDGET: Final = 0
 MAX_MONTHLY_TOKEN_BUDGET: Final = 100_000_000
 BUDGET_WARNING_RATIO: Final = 0.8
+
+# Wall-clock cap for the whole provider phase (tool loop + repair) of a scan.
+SCAN_TOTAL_TIMEOUT_SECONDS: Final = 900
+# Wall-clock cap for the whole provider tool loop of one chat turn.
+CHAT_TOTAL_TIMEOUT_SECONDS: Final = 600

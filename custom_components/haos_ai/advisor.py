@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -18,7 +19,13 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 from .automation_validation import async_validate_automation, export_yaml
-from .const import BUDGET_WARNING_RATIO, GOAL_PRESETS, OUTCOME_CHECK_DAYS
+from .const import (
+    BUDGET_WARNING_RATIO,
+    CHAT_TOTAL_TIMEOUT_SECONDS,
+    GOAL_PRESETS,
+    OUTCOME_CHECK_DAYS,
+    SCAN_TOTAL_TIMEOUT_SECONDS,
+)
 from .context import ContextEngine
 from .models import (
     AutomationProposal,
@@ -32,7 +39,7 @@ from .models import (
     utcnow_iso,
 )
 from .privacy import context_categories, exclude_ignored_entities, sanitize
-from .providers.base import ProviderClient, ProviderResponseError
+from .providers.base import ProviderClient, ProviderError, ProviderResponseError
 from .storage import AdvisorStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -182,6 +189,14 @@ def _merge_usage(target: dict[str, int], usage: dict[str, Any] | None) -> None:
                 key,
                 value,
             )
+
+
+def _total_timeout_message(seconds: float) -> str:
+    minutes = max(1, round(seconds / 60))
+    return (
+        f"The AI provider took too long (over {minutes} minutes); "
+        "the request was cancelled"
+    )
 
 
 class Advisor:
@@ -428,36 +443,48 @@ class Advisor:
 
         usage_sink: dict[str, int] = {}
         try:
-            response = await self.scan_provider.run_tool_loop(
-                messages,
-                self.context.tool_specs(),
-                execute,
-                max_tool_calls=limits["tool_calls"],
-                timeout=SCAN_PROVIDER_TIMEOUT,
-                usage_sink=usage_sink,
-            )
-            if not response.content.strip():
-                raise ProviderResponseError("Provider returned an empty scan response")
-            await progress({"stage": "validate", "scan_id": scan_id, "progress": 0.8})
             try:
-                payload = _extract_json(response.content)
-            except ProviderResponseError:
-                repair = await self.scan_provider.complete(
-                    [
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {
-                            "role": "user",
-                            "content": (
-                                "Repair the following into the exact scan JSON "
-                                "schema. Return JSON only:\n" + response.content
-                            ),
-                        },
-                    ],
-                    [],
-                    timeout=INTERACTIVE_PROVIDER_TIMEOUT,
-                )
-                _merge_usage(usage_sink, repair.usage)
-                payload = _extract_json(repair.content)
+                async with asyncio.timeout(SCAN_TOTAL_TIMEOUT_SECONDS) as deadline:
+                    response = await self.scan_provider.run_tool_loop(
+                        messages,
+                        self.context.tool_specs(),
+                        execute,
+                        max_tool_calls=limits["tool_calls"],
+                        timeout=SCAN_PROVIDER_TIMEOUT,
+                        usage_sink=usage_sink,
+                    )
+                    if not response.content.strip():
+                        raise ProviderResponseError(
+                            "Provider returned an empty scan response"
+                        )
+                    await progress(
+                        {"stage": "validate", "scan_id": scan_id, "progress": 0.8}
+                    )
+                    try:
+                        payload = _extract_json(response.content)
+                    except ProviderResponseError:
+                        repair = await self.scan_provider.complete(
+                            [
+                                {"role": "system", "content": SYSTEM_PROMPT},
+                                {
+                                    "role": "user",
+                                    "content": (
+                                        "Repair the following into the exact scan JSON "
+                                        "schema. Return JSON only:\n" + response.content
+                                    ),
+                                },
+                            ],
+                            [],
+                            timeout=INTERACTIVE_PROVIDER_TIMEOUT,
+                        )
+                        _merge_usage(usage_sink, repair.usage)
+                        payload = _extract_json(repair.content)
+            except TimeoutError as err:
+                if not deadline.expired():
+                    raise
+                raise ProviderError(
+                    _total_timeout_message(SCAN_TOTAL_TIMEOUT_SECONDS)
+                ) from err
             recommendations = await self._async_parse_recommendations(
                 payload,
                 scan_id,
@@ -693,14 +720,22 @@ class Advisor:
 
         usage_sink: dict[str, int] = {}
         try:
-            response = await self.provider.run_tool_loop(
-                messages,
-                self.context.tool_specs(),
-                execute,
-                max_tool_calls=8,
-                timeout=INTERACTIVE_PROVIDER_TIMEOUT,
-                usage_sink=usage_sink,
-            )
+            try:
+                async with asyncio.timeout(CHAT_TOTAL_TIMEOUT_SECONDS) as deadline:
+                    response = await self.provider.run_tool_loop(
+                        messages,
+                        self.context.tool_specs(),
+                        execute,
+                        max_tool_calls=8,
+                        timeout=INTERACTIVE_PROVIDER_TIMEOUT,
+                        usage_sink=usage_sink,
+                    )
+            except TimeoutError as err:
+                if not deadline.expired():
+                    raise
+                raise ProviderError(
+                    _total_timeout_message(CHAT_TOTAL_TIMEOUT_SECONDS)
+                ) from err
             if not response.content.strip():
                 raise ProviderResponseError("Provider returned an empty chat response")
         except BaseException:

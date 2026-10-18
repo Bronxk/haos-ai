@@ -6,8 +6,10 @@ import sys
 
 sys.path.insert(0, "/workspace")
 
+from custom_components.haos_ai import advisor as advisor_module  # noqa: E402
 from custom_components.haos_ai.advisor import Advisor  # noqa: E402
 from custom_components.haos_ai.providers.base import (  # noqa: E402
+    ProviderError,
     ProviderResponse,
     ProviderResponseError,
 )
@@ -32,13 +34,21 @@ class FakeProvider:
 
     async def complete(self, messages, tools, **kwargs):
         self.repair_calls += 1
-        return ProviderResponse(
-            content=self.repair_content, usage=dict(REPAIR_USAGE)
-        )
+        return ProviderResponse(content=self.repair_content, usage=dict(REPAIR_USAGE))
+
+
+class SlowProvider(FakeProvider):
+    """Spend tokens, then hang past the (patched) total time budget."""
+
+    async def run_tool_loop(self, messages, tools, execute, **kwargs):
+        kwargs["usage_sink"].update(LOOP_USAGE)
+        await asyncio.sleep(5)
+        raise AssertionError("the total timeout must cancel the tool loop")
 
 
 class FakeContext:
     outbound_trace: list = []
+    include_exact_location = False
 
     def tool_specs(self):
         return []
@@ -121,6 +131,39 @@ async def main() -> None:
     usage = advisor.store.monthly_usage()
     assert usage["input_tokens"] == 130, usage
     assert usage["output_tokens"] == 27, usage
+
+    # 4. The tool loop outlives the total scan budget: the request ends with a
+    # provider error, a failed event and the already spent tokens still count.
+    advisor_module.SCAN_TOTAL_TIMEOUT_SECONDS = 0.05
+    provider = SlowProvider("unused")
+    advisor = make_advisor(provider)
+    EVENTS.clear()
+    try:
+        await advisor.async_scan(progress, confirm_context=True)
+    except ProviderError as err:
+        assert "took too long" in str(err), err
+    else:
+        raise AssertionError("a scan over the total budget must raise")
+    assert EVENTS[-1] == {"stage": "failed"}, EVENTS[-1]
+    usage = advisor.store.monthly_usage()
+    assert usage["input_tokens"] == 100, usage
+    assert usage["output_tokens"] == 20, usage
+
+    # 5. Same for a chat turn (a failed chat records a receipt with usage).
+    advisor_module.CHAT_TOTAL_TIMEOUT_SECONDS = 0.05
+    advisor = make_advisor(SlowProvider("unused"))
+    advisor.context.set_exclusions = lambda prefs: None
+    EVENTS.clear()
+    try:
+        await advisor.async_chat("t1", "hello", progress)
+    except ProviderError as err:
+        assert "took too long" in str(err), err
+    else:
+        raise AssertionError("a chat over the total budget must raise")
+    assert EVENTS[-1] == {"stage": "failed"}, EVENTS[-1]
+    usage = advisor.store.monthly_usage()
+    assert usage["input_tokens"] == 100, usage
+    assert usage["output_tokens"] == 20, usage
     print("budget repair smoke ok")
 
 
