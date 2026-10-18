@@ -14,7 +14,7 @@
 - [x] Keep `package.json`, `package-lock.json`, `manifest.json`, and the
   changelog version aligned; `scripts/release.py check` enforces this.
 - [x] Run `python3 -m pytest -q`.
-- [x] Run `ruff check custom_components tests qa`.
+- [x] Run `ruff check custom_components tests qa scripts`.
 - [x] Run `npm ci`, `npm run check`, `npm test`, and `npm run build`.
 - [x] Confirm the committed production panel matches a clean build.
 - [x] Run Hassfest and the Home Assistant runtime smoke tests.
@@ -32,7 +32,10 @@
 - [ ] Preview a scan and confirm secrets and exact location are absent.
 - [ ] Complete a scan and confirm it contains automation suggestions when
   supported by evidence, plain-language explanations, validation, and YAML.
-- [ ] Confirm a repeated scan does not duplicate an existing suggestion.
+- [x] Confirm a repeated scan does not duplicate an existing suggestion
+  (covered by tests/test_storage.py).
+  - Dedupe matches on `(kind, normalized title)`: `_suggestion_fingerprint` in
+    `storage.py` casefolds both and collapses whitespace in the title.
 - [ ] Exercise chat, save/dismiss/restore, YAML copy/download, reconfigure, and
   uninstall/reinstall.
 - [x] Test desktop plus 320 px and 375 px widths in light and dark themes.

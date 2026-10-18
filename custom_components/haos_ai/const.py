@@ -112,9 +112,6 @@ APPLIED_OUTCOMES: Final = (
 # edits the same file so the two stay consistent.
 AUTOMATION_CONFIG_FILE: Final = "automations.yaml"
 
-EVENT_TYPE: Final = f"{DOMAIN}/event"
-DATA_RUNTIME: Final = "runtime"
-
 DEFAULT_HISTORY_DAYS: Final = 30
 DEFAULT_SCHEDULE: Final = SCHEDULE_MANUAL
 DEFAULT_SCHEDULE_TIME: Final = "03:00:00"

@@ -255,14 +255,23 @@ full browser refresh, and inspect Home Assistant logs for
 
 ## Development
 
+These are the same commands CI runs in the `test` job of `.github/workflows/validate.yml`:
+
 ```bash
-npm install
+python -m pip install pytest ruff aiohttp pyyaml
+npm ci
+ruff check custom_components tests qa scripts
+python -m pytest -q
 npm run check
+npm test
 npm run build
-python3 -m pytest -q
-ruff check custom_components tests
-python3 scripts/release.py check
+python scripts/release.py check
 ```
+
+The `qa/*_smoke.py` scripts need Home Assistant installed locally
+(`pip install homeassistant`). Run one with
+`PYTHONPATH=. python qa/<name>_smoke.py`. CI runs them inside a Home Assistant
+image with the repo mounted at `/workspace`.
 
 The production panel is emitted to
 `custom_components/haos_ai/frontend/haos-ai-panel.js` and must be committed in a
@@ -275,8 +284,9 @@ SHA-256 checksum, and publishes both files to a GitHub release.
 ## Current limitations
 
 - one chat profile, plus an optional second profile used only for scans;
-- the panel follows Home Assistant's language when a translation exists and
-  otherwise falls back to English;
+- the panel is English-only: `translations/en.json` is the only translation,
+  and most panel text is hard-coded in `frontend/haos-ai-panel.ts`, with only
+  the keys under `common` going through Home Assistant's translation lookup;
 - automation deletion is not offered; creation and updates require validated
   YAML plus a separate approval step;
 - no semantic/vector memory; local history is deterministic aggregation; and
