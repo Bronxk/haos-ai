@@ -12,7 +12,6 @@ export default defineConfig({
     outDir: "custom_components/haos_ai/frontend",
     emptyOutDir: true,
     sourcemap: false,
-    minify: "esbuild",
   },
   test: {
     environment: "jsdom",
