@@ -159,6 +159,12 @@
           automation_complexity: "normal",
           fix_existing_first: true,
           avoid_new_hardware: true,
+          change_permissions: {
+            create_automations: true,
+            update_automations: true,
+            remove_entities: false,
+            remove_devices: false,
+          },
         },
         suggestions: [
           {

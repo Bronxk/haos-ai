@@ -35,6 +35,13 @@ async function inspectLayout(panel, page) {
  * `icon="mdi:..."` attribute renders with no glyph at all. This runs in a real
  * browser, which is the only place that can catch it.
  */
+async function expectLayout(panel, where) {
+  const result = await inspectLayout(panel);
+  if (result.overflow || result.clipped.length || result.wrappedControls) {
+    throw new Error(`Layout failed in ${where}: ${JSON.stringify(result)}`);
+  }
+}
+
 async function inspectIconButtons(panel, where) {
   const result = await panel.evaluate((element) => {
     const buttons = [
@@ -75,7 +82,7 @@ async function inspectIconButtons(panel, where) {
 // HAOS_AI_CHROMIUM at an existing binary to run the checks with that one.
 const executablePath = process.env.HAOS_AI_CHROMIUM;
 const browser = await chromium.launch(executablePath ? { executablePath } : {});
-const widths = [320, 375, 414, 768, 1440, 1920];
+const widths = [280, 320, 375, 414, 768, 1440, 1920];
 let checkedIconButtons = 0;
 for (const width of widths) {
  for (const dark of [false, true]) {
@@ -96,6 +103,19 @@ for (const width of widths) {
   if (result.overflow || result.clipped.length || result.wrappedControls) {
     throw new Error(`Layout failed at ${width}px: ${JSON.stringify(result)}`);
   }
+  // Approval dialog on top of the open suggestion (long YAML is in <details>).
+  await panel.locator("ha-button", { hasText: "Review & create" }).click();
+  await page.waitForTimeout(100);
+  await panel.locator("details summary").last().click();
+  await page.waitForTimeout(50);
+  checkedIconButtons += await inspectIconButtons(panel, `approve dialog ${width}px`);
+  await expectLayout(panel, `approve dialog ${width}px`);
+  if (width <= 320 && !dark) {
+    await page.screenshot({ path: `/tmp/haos-ai-approve-${width}px.png`, fullPage: true });
+  }
+  await panel.locator("ha-adaptive-dialog ha-button").first().click();
+  await page.waitForTimeout(80);
+
   if ((width === 320 || width === 1440) && !dark) {
     await page.screenshot({
       path: `/tmp/haos-ai-${width}px-detail.png`,
@@ -115,17 +135,20 @@ for (const width of widths) {
     await page.screenshot({ path: `/tmp/haos-ai-settings-${width}px.png`, fullPage: true });
   }
 
+  await panel.locator('.tabs button').nth(2).click();
+  await page.waitForTimeout(80);
+  checkedIconButtons += await inspectIconButtons(panel, `activity ${width}px`);
+  await expectLayout(panel, `activity ${width}px`);
+  await panel.locator('.receipt-row').first().click();
+  await page.waitForTimeout(80);
+  await expectLayout(panel, `activity receipt ${width}px`);
+  if (!dark && (width === 1440 || width <= 320)) await page.screenshot({ path: `/tmp/haos-ai-activity-${width}px.png`, fullPage: true });
+  await panel.locator('.tabs button').nth(1).click();
+  await page.waitForTimeout(80);
+  checkedIconButtons += await inspectIconButtons(panel, `chat ${width}px`);
+  await expectLayout(panel, `chat ${width}px`);
+  if (!dark && (width === 1440 || width <= 320)) await page.screenshot({ path: `/tmp/haos-ai-chat-${width}px.png`, fullPage: true });
   if (width === 1440) {
-    await panel.locator('.tabs button').nth(2).click();
-    await page.waitForTimeout(80);
-    checkedIconButtons += await inspectIconButtons(panel, "activity 1440px");
-    await panel.locator('.receipt-row').first().click();
-    await page.waitForTimeout(80);
-    if (!dark) await page.screenshot({ path: "/tmp/haos-ai-activity.png", fullPage: true });
-    await panel.locator('.tabs button').nth(1).click();
-    await page.waitForTimeout(80);
-    checkedIconButtons += await inspectIconButtons(panel, "chat 1440px");
-    if (!dark) await page.screenshot({ path: "/tmp/haos-ai-chat.png", fullPage: true });
     await panel.locator('.tabs button').nth(3).click();
     await page.waitForTimeout(80);
     await page.screenshot({ path: `/tmp/haos-ai-settings-${dark ? "dark" : "light"}.png`, fullPage: true });
