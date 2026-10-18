@@ -13,6 +13,7 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_change
@@ -98,8 +99,12 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         a trusted administrator by accident.
         """
         runtime: HaosAIRuntime | None = hass.data.get(DOMAIN)
-        if runtime is None or runtime.operation_lock.locked():
-            return
+        if runtime is None:
+            _LOGGER.warning("HAOS AI scan requested but the integration is not loaded")
+            raise HomeAssistantError("HAOS AI is not loaded")
+        if runtime.operation_lock.locked():
+            _LOGGER.warning("HAOS AI scan requested while another operation is running")
+            raise HomeAssistantError("A scan is already running")
         user_id = call.context.user_id
         if user_id:
             user = await hass.auth.async_get_user(user_id)
@@ -130,6 +135,7 @@ def _parse_time(value: str) -> time:
         hour, minute, second = parts
         return time(hour=hour, minute=minute, second=second)
     except (TypeError, ValueError):
+        _LOGGER.warning("Invalid scan time %r, falling back to 03:00", value)
         return time(hour=3)
 
 
@@ -152,6 +158,7 @@ def _configure_schedule(hass: HomeAssistant, runtime: HaosAIRuntime) -> None:
         ):
             return
         if runtime.operation_lock.locked():
+            _LOGGER.warning("Scheduled scan skipped: another operation is running")
             return
 
         async def progress(event: dict[str, Any]) -> None:

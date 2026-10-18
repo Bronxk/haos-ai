@@ -15,6 +15,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .advisor import BudgetExceededError
 from .const import DOMAIN
+from .providers.base import ProviderError
 from .runtime import HaosAIRuntime
 
 _LOGGER = logging.getLogger(__name__)
@@ -141,6 +142,18 @@ class HaosAIConversationEntity(
                 )
         except BudgetExceededError as err:
             return self._result(user_input, chat_log, str(err))
+        except ProviderError as err:
+            _LOGGER.warning(
+                "HAOS AI Assist request failed at the provider: %s: %s",
+                type(err).__name__,
+                err,
+            )
+            return self._result(
+                user_input,
+                chat_log,
+                "HAOS AI could not get an answer from its AI provider. "
+                "Check the provider settings and try again.",
+            )
         return self._result(
             user_input,
             chat_log,

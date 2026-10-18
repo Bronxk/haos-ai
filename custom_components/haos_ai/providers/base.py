@@ -262,8 +262,13 @@ class ProviderClient(ABC):
                     # One malformed tool argument must not abort an entire scan
                     # after tokens were already spent: hand the failure back to
                     # the model as a tool result instead.
+                    _LOGGER.warning(
+                        "Read-only context tool %s failed: %s",
+                        call.name,
+                        type(err).__name__,
+                    )
                     _LOGGER.debug(
-                        "Read-only context tool %s failed", call.name, exc_info=True
+                        "Read-only context tool %s traceback", call.name, exc_info=True
                     )
                     result = {
                         "error": "tool_failed",
