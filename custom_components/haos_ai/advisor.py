@@ -339,6 +339,13 @@ class Advisor:
                 updated += 1
         return updated
 
+    async def _async_report_failure(self, progress: ProgressCallback) -> None:
+        """Tell open panels the request ended without a result."""
+        try:
+            await progress({"stage": "failed"})
+        except Exception:
+            _LOGGER.exception("Could not publish the failed progress stage")
+
     async def async_scan(
         self,
         progress: ProgressCallback,
@@ -346,6 +353,18 @@ class Advisor:
         confirm_context: bool,
     ) -> dict[str, Any]:
         """Run a manual or scheduled evidence-backed scan."""
+        try:
+            return await self._async_scan(progress, confirm_context=confirm_context)
+        except BaseException:
+            await self._async_report_failure(progress)
+            raise
+
+    async def _async_scan(
+        self,
+        progress: ProgressCallback,
+        *,
+        confirm_context: bool,
+    ) -> dict[str, Any]:
         scan_id = uuid.uuid4().hex
         await progress({"stage": "context", "scan_id": scan_id, "progress": 0.1})
         if self.refresh_applied_outcomes():
@@ -636,6 +655,18 @@ class Advisor:
         progress: ProgressCallback,
     ) -> dict[str, Any]:
         """Run one setup-aware chat turn."""
+        try:
+            return await self._async_chat(thread_id, text, progress)
+        except BaseException:
+            await self._async_report_failure(progress)
+            raise
+
+    async def _async_chat(
+        self,
+        thread_id: str,
+        text: str,
+        progress: ProgressCallback,
+    ) -> dict[str, Any]:
         self._enforce_budget()
         self.context.set_exclusions(self.store.data["preferences"])
         user_message = ChatMessage(role="user", content=text[:12000])

@@ -73,8 +73,11 @@ def make_advisor(provider: FakeProvider) -> Advisor:
     return advisor
 
 
-async def progress(_event) -> None:
-    return None
+EVENTS: list[dict] = []
+
+
+async def progress(event) -> None:
+    EVENTS.append(event)
 
 
 async def main() -> None:
@@ -88,6 +91,7 @@ async def main() -> None:
     else:
         raise AssertionError("an unrepairable response must still raise")
     assert provider.repair_calls == 1
+    assert EVENTS[-1] == {"stage": "failed"}, EVENTS[-1]
     usage = advisor.store.monthly_usage()
     assert usage["input_tokens"] == 130, usage
     assert usage["output_tokens"] == 27, usage
