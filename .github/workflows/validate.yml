@@ -121,6 +121,10 @@ jobs:
             python /workspace/qa/automation_apply_smoke.py
           docker run --rm -v "$PWD:/workspace:ro" homeassistant/home-assistant:${{ matrix.home-assistant }} \
             python /workspace/qa/release_archive_smoke.py
+          docker run --rm -v "$PWD:/workspace:ro" homeassistant/home-assistant:${{ matrix.home-assistant }} \
+            python /workspace/qa/budget_repair_smoke.py
+          docker run --rm -v "$PWD:/workspace:ro" homeassistant/home-assistant:${{ matrix.home-assistant }} \
+            python /workspace/qa/reconfigure_smoke.py
           docker run --rm \
             -v "$PWD/custom_components:/config/custom_components:ro" \
             -v "$PWD/qa/install_smoke.py:/install_smoke.py:ro" \
