@@ -77,3 +77,13 @@ def test_rollup_survives_receipt_pruning() -> None:
     usage = store.monthly_usage()
     assert usage["requests"] == total
     assert usage["total_tokens"] == 2 * total
+
+
+def test_dropped_usage_deltas_are_logged(caplog) -> None:
+    store = _store()
+
+    store._add_month_usage("bad", {"input_tokens": 5})
+    store._add_month_usage("2026-07-01T00:00:00+00:00", {"input_tokens": "x"})
+
+    assert "Dropping token usage" in caplog.text
+    assert "Dropping unparseable token usage delta" in caplog.text

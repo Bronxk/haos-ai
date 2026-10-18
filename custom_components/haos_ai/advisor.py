@@ -177,7 +177,11 @@ def _merge_usage(target: dict[str, int], usage: dict[str, Any] | None) -> None:
         try:
             target[str(key)] = target.get(str(key), 0) + int(value)
         except (TypeError, ValueError):
-            continue
+            _LOGGER.warning(
+                "Dropping non-integer token usage %s=%r from the budget total",
+                key,
+                value,
+            )
 
 
 class Advisor:
@@ -415,40 +419,46 @@ class Advisor:
             )
             if not response.content.strip():
                 raise ProviderResponseError("Provider returned an empty scan response")
-        except BaseException:
-            # Tokens already spent must still count against the monthly budget,
-            # so finalize the receipt before letting the failure propagate.
-            self.store.set_receipt_usage(receipt.id, usage_sink)
-            await self.store.async_save()
-            raise
-        await progress({"stage": "validate", "scan_id": scan_id, "progress": 0.8})
-        try:
-            payload = _extract_json(response.content)
-        except ProviderResponseError:
-            repair = await self.scan_provider.complete(
-                [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {
-                        "role": "user",
-                        "content": (
-                            "Repair the following into the exact scan JSON schema. "
-                            "Return JSON only:\n" + response.content
-                        ),
-                    },
-                ],
-                [],
-                timeout=INTERACTIVE_PROVIDER_TIMEOUT,
+            await progress({"stage": "validate", "scan_id": scan_id, "progress": 0.8})
+            try:
+                payload = _extract_json(response.content)
+            except ProviderResponseError:
+                repair = await self.scan_provider.complete(
+                    [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {
+                            "role": "user",
+                            "content": (
+                                "Repair the following into the exact scan JSON "
+                                "schema. Return JSON only:\n" + response.content
+                            ),
+                        },
+                    ],
+                    [],
+                    timeout=INTERACTIVE_PROVIDER_TIMEOUT,
+                )
+                _merge_usage(usage_sink, repair.usage)
+                payload = _extract_json(repair.content)
+            recommendations = await self._async_parse_recommendations(
+                payload,
+                scan_id,
+                receipt.id,
+                max_total=limits["recommendations"],
+                max_hygiene=limits["hygiene"],
             )
-            _merge_usage(usage_sink, repair.usage)
-            payload = _extract_json(repair.content)
+        except BaseException:
+            # Tokens already spent (tool loop, repair call) must still count
+            # against the monthly budget however the scan fails afterwards, so
+            # finalize the receipt before letting the failure propagate.
+            self.store.set_receipt_usage(receipt.id, usage_sink)
+            try:
+                await self.store.async_save()
+            except Exception:
+                # Never let a storage error replace the original failure
+                # (notably a CancelledError).
+                _LOGGER.exception("Could not persist token usage after a failed scan")
+            raise
 
-        recommendations = await self._async_parse_recommendations(
-            payload,
-            scan_id,
-            receipt.id,
-            max_total=limits["recommendations"],
-            max_hygiene=limits["hygiene"],
-        )
         provider_recommendation_count = len(recommendations)
         self.store.set_receipt_usage(receipt.id, usage_sink)
         stored_receipt = self.store.get_receipt(receipt.id)
@@ -471,7 +481,7 @@ class Advisor:
                 "recommendation_count": len(recommendations),
                 "recurrence_count": recurrence_count,
                 "privacy_receipt_id": receipt.id,
-                "usage": response.usage,
+                "usage": dict(usage_sink),
             }
         )
         await self.store.async_save()
@@ -479,7 +489,7 @@ class Advisor:
         return {
             "scan_id": scan_id,
             "recommendations": [item.to_dict() for item in recommendations],
-            "usage": response.usage,
+            "usage": dict(usage_sink),
             "privacy_receipt_id": receipt.id,
             "budget": self.budget_status(),
         }
@@ -609,8 +619,12 @@ class Advisor:
                         operation=operation,
                     )
                 )
-            except (TypeError, ValueError):
-                _LOGGER.debug("Discarding malformed recommendation", exc_info=True)
+            except (TypeError, ValueError) as err:
+                _LOGGER.warning(
+                    "Discarding malformed provider recommendation: %s",
+                    err,
+                    exc_info=True,
+                )
         return balance_recommendations(
             recommendations, max_total=max_total, max_hygiene=max_hygiene
         )

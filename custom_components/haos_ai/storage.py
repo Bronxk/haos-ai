@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -32,6 +33,8 @@ from .const import (
     STORAGE_VERSION,
 )
 from .models import AppliedChange, ChatMessage, PrivacyReceipt, Recommendation
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _suggestion_fingerprint(item: dict[str, Any]) -> tuple[str, str]:
@@ -519,6 +522,11 @@ class AdvisorStore:
         """Add a token delta to the month rollup, never going below zero."""
         entry = self._month_usage(created_at)
         if entry is None:
+            _LOGGER.warning(
+                "Dropping token usage %r: receipt timestamp %r has no month",
+                usage,
+                created_at,
+            )
             return
         try:
             entry["input_tokens"] = max(
@@ -528,7 +536,11 @@ class AdvisorStore:
                 0, entry["output_tokens"] + int(usage.get("output_tokens", 0) or 0)
             )
         except (TypeError, ValueError):
-            return
+            _LOGGER.warning(
+                "Dropping unparseable token usage delta %r for month %s",
+                usage,
+                str(created_at)[:7],
+            )
 
     def _count_month_request(self, created_at: str) -> None:
         entry = self._month_usage(created_at)
