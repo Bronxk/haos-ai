@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import logging
 from datetime import time
@@ -13,7 +14,7 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, Unauthorized
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_change
@@ -54,6 +55,9 @@ from .storage import AdvisorStore
 from .websocket_api import async_register as async_register_websocket
 
 _LOGGER = logging.getLogger(__name__)
+
+# Longest unload waits for a running advisor operation before giving up.
+UNLOAD_WAIT_SECONDS = 30
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 PLATFORMS = (Platform.CONVERSATION,)
 
@@ -110,7 +114,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             user = await hass.auth.async_get_user(user_id)
             if user is None or not user.is_admin:
                 _LOGGER.warning("Rejected HAOS AI scan requested by a non-admin")
-                return
+                raise Unauthorized(context=call.context)
         else:
             _LOGGER.debug(
                 "Accepted an unattributed HAOS AI scan from an automation or script"
@@ -266,7 +270,18 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload provider runtime."""
     if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         return False
-    runtime: HaosAIRuntime | None = hass.data.pop(DOMAIN, None)
+    runtime: HaosAIRuntime | None = hass.data.get(DOMAIN)
+    if runtime is not None and runtime.operation_lock.locked():
+        # Let a running scan/chat/approve finish before its store is dropped.
+        try:
+            async with asyncio.timeout(UNLOAD_WAIT_SECONDS):
+                async with runtime.operation_lock:
+                    pass
+        except TimeoutError:
+            _LOGGER.warning(
+                "HAOS AI unloading while an advisor operation is still running"
+            )
+    hass.data.pop(DOMAIN, None)
     if runtime and runtime.unsubscribe_schedule:
         runtime.unsubscribe_schedule()
     return True

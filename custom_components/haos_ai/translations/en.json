@@ -35,7 +35,8 @@
       "unknown": "Unexpected error"
     },
     "abort": {
-      "single_instance_allowed": "Only one HAOS AI provider can be active"
+      "single_instance_allowed": "Only one HAOS AI provider can be active",
+      "advisor_busy": "Another advisor request is already running. Try again when it has finished."
     }
   },
   "options": {
@@ -51,6 +52,9 @@
           "notify_new_suggestions": "Notify when scheduled scans find new suggestions"
         }
       }
+    },
+    "abort": {
+      "advisor_busy": "Another advisor request is already running. Try again when it has finished."
     }
   },
   "common": {

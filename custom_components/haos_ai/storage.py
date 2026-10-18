@@ -156,6 +156,14 @@ def normalize_preferences(
     }
 
 
+ASSIST_THREAD_PREFIX = "assist:"
+
+
+def is_assist_thread(thread_id: str) -> bool:
+    """Return True for per-user Assist conversation threads (never panel-visible)."""
+    return str(thread_id).startswith(ASSIST_THREAD_PREFIX)
+
+
 class AdvisorStore:
     """Small versioned store with bounded retention."""
 
@@ -433,6 +441,8 @@ class AdvisorStore:
         for thread_id, messages in self.data["chat_threads"].items():
             if not isinstance(messages, list):
                 continue
+            if is_assist_thread(thread_id):
+                continue  # Assist conversations are private to their user.
             meta = self.data["chat_thread_meta"].get(thread_id, {})
             last = messages[-1] if messages else {}
             rows.append(

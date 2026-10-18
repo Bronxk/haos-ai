@@ -40,7 +40,7 @@ from .models import (
 )
 from .privacy import context_categories, exclude_ignored_entities, sanitize
 from .providers.base import ProviderClient, ProviderError, ProviderResponseError
-from .storage import AdvisorStore
+from .storage import AdvisorStore, is_assist_thread
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -189,6 +189,11 @@ def _merge_usage(target: dict[str, int], usage: dict[str, Any] | None) -> None:
                 key,
                 value,
             )
+
+
+def _public_thread_id(thread_id: str) -> str:
+    """Hide the Assist user id from receipts and broadcast progress events."""
+    return "assist" if is_assist_thread(thread_id) else thread_id
 
 
 def _total_timeout_message(seconds: float) -> str:
@@ -714,7 +719,13 @@ class Advisor:
             messages.append({"role": item["role"], "content": content})
 
         async def execute(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-            await progress({"stage": "tool", "thread_id": thread_id, "tool": name})
+            await progress(
+                {
+                    "stage": "tool",
+                    "thread_id": _public_thread_id(thread_id),
+                    "tool": name,
+                }
+            )
             return await self.context.async_execute_tool(
                 name, arguments, self.store.data["preferences"]
             )
@@ -756,7 +767,7 @@ class Advisor:
                         ),
                         redactions=sorted(set(chat_redactions)),
                         payload_preview={
-                            "thread_id": thread_id,
+                            "thread_id": _public_thread_id(thread_id),
                             "message_count": len(history),
                             "requested_context": self.context.outbound_trace,
                             "failed": True,
@@ -775,7 +786,7 @@ class Advisor:
             ),
             redactions=sorted(set(chat_redactions)),
             payload_preview={
-                "thread_id": thread_id,
+                "thread_id": _public_thread_id(thread_id),
                 "message_count": len(history),
                 "requested_context": self.context.outbound_trace,
             },
@@ -785,7 +796,9 @@ class Advisor:
         assistant_message = ChatMessage(role="assistant", content=response.content)
         self.store.add_message(thread_id, assistant_message)
         await self.store.async_save()
-        await progress({"stage": "complete", "thread_id": thread_id})
+        await progress(
+            {"stage": "complete", "thread_id": _public_thread_id(thread_id)}
+        )
         return {
             "thread_id": thread_id,
             "message": assistant_message.to_dict(),

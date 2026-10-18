@@ -55,7 +55,7 @@ from .models import AppliedChange, RecommendationStatus, utcnow_iso
 from .providers import create_provider
 from .providers.base import ProviderAuthError, ProviderError, normalize_base_url
 from .runtime import HaosAIRuntime
-from .storage import normalize_preferences
+from .storage import is_assist_thread, normalize_preferences
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ _LOGGER = logging.getLogger(__name__)
 def _runtime(hass: HomeAssistant) -> HaosAIRuntime:
     runtime = hass.data.get(DOMAIN)
     if not isinstance(runtime, HaosAIRuntime):
-        raise RuntimeError("HAOS AI is not configured")
+        raise HomeAssistantError("HAOS AI is not loaded")
     return runtime
 
 
@@ -601,6 +601,9 @@ async def ws_chat(
     async def progress(event: dict[str, Any]) -> None:
         hass.bus.async_fire(f"{DOMAIN}_progress", event)
 
+    if is_assist_thread(msg["thread_id"]):
+        connection.send_error(msg["id"], "not_found", "Chat thread not found")
+        return
     runtime = _runtime(hass)
     if runtime.operation_lock.locked():
         connection.send_error(
@@ -631,6 +634,9 @@ async def ws_chat_thread(
     hass: HomeAssistant, connection: Any, msg: dict[str, Any]
 ) -> None:
     """Return one local chat thread."""
+    if is_assist_thread(msg["thread_id"]):
+        connection.send_error(msg["id"], "not_found", "Chat thread not found")
+        return
     connection.send_result(
         msg["id"], _runtime(hass).store.get_thread(msg["thread_id"])
     )
@@ -658,6 +664,9 @@ async def ws_chat_thread_delete(
     hass: HomeAssistant, connection: Any, msg: dict[str, Any]
 ) -> None:
     """Delete one local chat thread."""
+    if is_assist_thread(msg["thread_id"]):
+        connection.send_error(msg["id"], "not_found", "Chat thread not found")
+        return
     runtime = _runtime(hass)
     deleted = runtime.store.delete_thread(msg["thread_id"])
     if deleted:
@@ -678,6 +687,9 @@ async def ws_chat_thread_rename(
     hass: HomeAssistant, connection: Any, msg: dict[str, Any]
 ) -> None:
     """Rename one local chat thread."""
+    if is_assist_thread(msg["thread_id"]):
+        connection.send_error(msg["id"], "not_found", "Chat thread not found")
+        return
     runtime = _runtime(hass)
     renamed = runtime.store.rename_thread(msg["thread_id"], msg["title"])
     if not renamed:
@@ -811,24 +823,34 @@ async def _async_validated_profile(
     incoming: dict[str, Any],
     stored_key: str,
     stored_provider: str | None,
+    stored_base_url: str | None = None,
 ) -> tuple[str, str, str, str]:
     """Validate one provider profile and return its normalized fields.
 
     An empty API key keeps the stored one, but only when the provider is
-    unchanged; a new provider always needs its own credential.
+    and the normalized base URL are unchanged; a new provider or endpoint
+    always needs its own credential so a stored key is never sent to a new host.
     """
     provider = str(incoming.get(CONF_PROVIDER, ""))
     if provider not in PROVIDERS:
         raise ValueError("Unknown provider")
     api_key = str(incoming.get(CONF_API_KEY, "")).strip()
-    if not api_key:
-        if provider != stored_provider or not stored_key:
-            raise ProviderAuthError("Enter an API key when changing providers")
-        api_key = stored_key
     model = str(incoming.get(CONF_MODEL, "")).strip()
+    base_url = normalize_base_url(str(incoming.get(CONF_BASE_URL, "")))
+    if not api_key:
+        try:
+            same_url = bool(stored_base_url) and (
+                normalize_base_url(str(stored_base_url)) == base_url
+            )
+        except ValueError:
+            same_url = False
+        if provider != stored_provider or not same_url or not stored_key:
+            raise ProviderAuthError(
+                "Enter an API key when changing the provider or endpoint"
+            )
+        api_key = stored_key
     if not model:
         raise ValueError("Enter a model")
-    base_url = normalize_base_url(str(incoming.get(CONF_BASE_URL, "")))
     client = create_provider(
         provider, async_get_clientsession(hass), api_key, base_url, model
     )
@@ -851,6 +873,13 @@ async def ws_config_update(
 ) -> None:
     """Validate and update connection plus scan options without exposing secrets."""
     runtime = _runtime(hass)
+    if runtime.operation_lock.locked():
+        connection.send_error(
+            msg["id"],
+            "advisor_busy",
+            "Another advisor request is already running",
+        )
+        return
     entry = runtime.entry
     scan_profile = msg.get("scan_profile")
     try:
@@ -859,6 +888,7 @@ async def ws_config_update(
             msg["connection"],
             str(entry.data.get(CONF_API_KEY, "")),
             entry.data.get(CONF_PROVIDER),
+            entry.data.get(CONF_BASE_URL),
         )
     except ProviderAuthError as err:
         connection.send_error(msg["id"], "invalid_auth", str(err))
@@ -886,6 +916,7 @@ async def ws_config_update(
                 scan_profile,
                 str(entry.data.get(CONF_SCAN_API_KEY, "")),
                 entry.data.get(CONF_SCAN_PROVIDER),
+                entry.data.get(CONF_SCAN_BASE_URL),
             )
         except ProviderAuthError as err:
             connection.send_error(msg["id"], "scan_invalid_auth", str(err))
@@ -909,6 +940,14 @@ async def ws_config_update(
         connection.send_error(msg["id"], "invalid_options", str(err))
         return
 
+    # Validation awaited the network; an operation may have started since.
+    if runtime.operation_lock.locked():
+        connection.send_error(
+            msg["id"],
+            "advisor_busy",
+            "Another advisor request is already running",
+        )
+        return
     connection.send_result(
         msg["id"],
         {
@@ -946,6 +985,13 @@ async def ws_options_update(
 ) -> None:
     """Update privacy and schedule options without contacting the provider."""
     runtime = _runtime(hass)
+    if runtime.operation_lock.locked():
+        connection.send_error(
+            msg["id"],
+            "advisor_busy",
+            "Another advisor request is already running",
+        )
+        return
     try:
         options = _validated_options(msg["options"])
     except (TypeError, ValueError) as err:

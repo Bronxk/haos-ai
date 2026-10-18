@@ -17,6 +17,7 @@ from .advisor import BudgetExceededError
 from .const import DOMAIN
 from .providers.base import ProviderError
 from .runtime import HaosAIRuntime
+from .storage import ASSIST_THREAD_PREFIX
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -100,7 +101,7 @@ class HaosAIConversationEntity(
             or uuid.uuid4().hex
         )
         scope = hashlib.sha256(conversation_id.encode("utf-8")).hexdigest()[:24]
-        return f"assist:{user_input.context.user_id}:{scope}"
+        return f"{ASSIST_THREAD_PREFIX}{user_input.context.user_id}:{scope}"
 
     @override
     async def _async_handle_message(

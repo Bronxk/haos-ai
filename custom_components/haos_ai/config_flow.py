@@ -247,6 +247,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         """Replace provider credentials without deleting local advisor data."""
+        if _advisor_busy(self.hass):
+            return self.async_abort(reason="advisor_busy")
         entry = self._get_reconfigure_entry()
         errors: dict[str, str] = {}
         defaults = dict(entry.data)
@@ -256,9 +258,19 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             provider = str(candidate.get(CONF_PROVIDER, ""))
             if not str(candidate.get(CONF_API_KEY, "")).strip():
                 # An empty key keeps the stored credential, but only while the
-                # provider stays the same: a new provider needs its own key,
+                # provider and endpoint stay the same: a new provider or URL needs its
+                # own key,
                 # exactly as the panel path enforces.
-                if provider == str(entry.data.get(CONF_PROVIDER, "")):
+                try:
+                    same_url = normalize_base_url(
+                        str(candidate.get(CONF_BASE_URL, ""))
+                    ) == normalize_base_url(str(entry.data.get(CONF_BASE_URL, "")))
+                except ValueError:
+                    same_url = False
+                if (
+                    provider == str(entry.data.get(CONF_PROVIDER, ""))
+                    and same_url
+                ):
                     candidate[CONF_API_KEY] = entry.data[CONF_API_KEY]
                 else:
                     errors["base"] = "invalid_auth"
@@ -314,6 +326,16 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return HaosAIOptionsFlow(config_entry)
 
 
+def _advisor_busy(hass: Any) -> bool:
+    """Return whether a scan, chat or approval holds the operation lock.
+
+    Saving settings reloads the entry, which would orphan a running operation
+    and let it overwrite the reloaded data.
+    """
+    runtime = hass.data.get(DOMAIN)
+    return runtime is not None and runtime.operation_lock.locked()
+
+
 class HaosAIOptionsFlow(config_entries.OptionsFlow):
     """Update provider and privacy settings."""
 
@@ -324,6 +346,8 @@ class HaosAIOptionsFlow(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         if user_input is not None:
+            if _advisor_busy(self.hass):
+                return self.async_abort(reason="advisor_busy")
             return self.async_create_entry(title="", data=user_input)
         return self.async_show_form(
             step_id="init", data_schema=_options_schema(dict(self.entry.options))

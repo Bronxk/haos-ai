@@ -38,7 +38,7 @@ def make_flow(entry_data: dict[str, Any]):
     """Build a flow handler bound to a fake entry; capture the update."""
     entry = SimpleNamespace(data=dict(entry_data))
     flow = config_flow.ConfigFlow()
-    flow.hass = SimpleNamespace()
+    flow.hass = SimpleNamespace(data={})
     flow.handler = DOMAIN
     flow.flow_id = "reconfigure-smoke"
     flow.context = {"source": "reconfigure"}
@@ -132,6 +132,48 @@ async def main() -> None:
         assert data[CONF_PROVIDER] == OTHER, data
         assert data[CONF_API_KEY] == "other-key", data
         assert data[CONF_SCAN_MODEL] == "scan-model", data
+
+    # Same provider, empty key, CHANGED base_url: stored key must not be reused.
+    with patch.object(config_flow, "_async_validate", fake_validate):
+        count = len(validated)
+        flow, captured = make_flow(stored())
+        result = await flow.async_step_reconfigure(
+            {
+                CONF_PROVIDER: MAIN,
+                CONF_API_KEY: "",
+                CONF_MODEL: "m",
+                CONF_BASE_URL: "https://evil.example.test/v1",
+            }
+        )
+        assert result["type"] == "form", result
+        assert result["errors"] == {"base": "invalid_auth"}, result
+        assert not captured and len(validated) == count
+
+        # Cosmetic URL difference (trailing slash) still counts as unchanged.
+        flow, captured = make_flow(stored())
+        await flow.async_step_reconfigure(
+            {
+                CONF_PROVIDER: MAIN,
+                CONF_API_KEY: "",
+                CONF_MODEL: "m",
+                CONF_BASE_URL: "https://main.example.test/v1/",
+            }
+        )
+        assert captured["data"][CONF_API_KEY] == "main-secret", captured
+
+    # A running advisor operation blocks reconfigure and the options flow:
+    # saving reloads the entry and would orphan the operation.
+    lock = asyncio.Lock()
+    await lock.acquire()
+    flow, captured = make_flow(stored())
+    flow.hass = SimpleNamespace(data={DOMAIN: SimpleNamespace(operation_lock=lock)})
+    result = await flow.async_step_reconfigure({CONF_PROVIDER: MAIN})
+    assert result["type"] == "abort" and result["reason"] == "advisor_busy", result
+    assert not captured, captured
+    options = config_flow.HaosAIOptionsFlow(SimpleNamespace(options={}))
+    options.hass = flow.hass
+    result = await options.async_step_init({"scan_depth": "standard"})
+    assert result["type"] == "abort" and result["reason"] == "advisor_busy", result
 
     print("Reconfigure smoke test OK")
 
