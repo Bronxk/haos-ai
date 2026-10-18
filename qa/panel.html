@@ -99,12 +99,12 @@
       const overview = {
         version: "1.0.4",
         provider: "openai",
-        model: "gpt-5.6",
+        model: "gpt-6.1-sol",
         base_url: "https://api.openai.com/v1",
         provider_options: [
-          { id: "openai", label: "OpenAI", default_model: "gpt-5.6", default_base_url: "https://api.openai.com/v1" },
-          { id: "anthropic", label: "Anthropic", default_model: "claude-sonnet-5", default_base_url: "https://api.anthropic.com" },
-          { id: "deepseek", label: "DeepSeek", default_model: "deepseek-v4-flash", default_base_url: "https://api.deepseek.com" },
+          { id: "openai", label: "OpenAI", default_model: "gpt-6.1-sol", default_base_url: "https://api.openai.com/v1" },
+          { id: "anthropic", label: "Anthropic", default_model: "claude-sonnet-5-5", default_base_url: "https://api.anthropic.com" },
+          { id: "deepseek", label: "DeepSeek", default_model: "deepseek-flash", default_base_url: "https://api.deepseek.com" },
           { id: "openai_compatible", label: "OpenAI Compatible", default_model: "", default_base_url: "" },
         ],
         goal_presets: [
@@ -239,7 +239,7 @@
             id: "receipt-one",
             created_at: overview.scan_runs[0].created_at,
             provider: "openai",
-            model: "gpt-5.6",
+            model: "gpt-6.1-sol",
             purpose: "scan",
             categories: ["home_summary", "history", "preferences"],
             redaction_count: 3,
@@ -276,7 +276,7 @@
             if (message.type === "haos_ai/context_preview") {
               return {
                 provider: "openai",
-                model: "gpt-5.6",
+                model: "gpt-6.1-sol",
                 purpose: "scan",
                 payload: {
                   home_summary: {},

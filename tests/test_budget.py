@@ -23,7 +23,7 @@ def _store() -> AdvisorStore:
 def _receipt(created_at: str, *, input_tokens: int, output_tokens: int) -> dict:
     receipt = PrivacyReceipt(
         provider="openai",
-        model="gpt-5.6",
+        model="gpt-6.1-sol",
         purpose="scan",
         categories=[],
         redactions=[],

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Updated default models per the providers' current docs: OpenAI `gpt-6.1-sol`
+  (was `gpt-5.6`), Anthropic `claude-sonnet-5-5` (was `claude-sonnet-5`),
+  DeepSeek `deepseek-flash` (was the now-deprecated `deepseek-v4-flash`
+  alias). Existing configured models are not changed.
+- Corrected the OpenAI-compatible validation docstring (it probes
+  `/chat/completions`, not a models endpoint).
+
 ## 1.0.4
 
 - The panel is now registered through `panel_custom.async_register_panel`

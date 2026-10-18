@@ -95,9 +95,9 @@ For a manual installation, download the new release archive, replace only
 
 | Provider | Default model | Default base URL |
 | --- | --- | --- |
-| OpenAI | `gpt-5.6` | `https://api.openai.com/v1` |
-| Anthropic | `claude-sonnet-5` | `https://api.anthropic.com` |
-| DeepSeek | `deepseek-v4-flash` | `https://api.deepseek.com` |
+| OpenAI | `gpt-6.1-sol` | `https://api.openai.com/v1` |
+| Anthropic | `claude-sonnet-5-5` | `https://api.anthropic.com` |
+| DeepSeek | `deepseek-flash` | `https://api.deepseek.com` |
 | OpenAI-compatible | set by you | set by you |
 
 Models and endpoints change over time. Override either value during setup when

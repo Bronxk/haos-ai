@@ -50,9 +50,9 @@ DEFAULT_ENDPOINTS: Final = {
 }
 
 DEFAULT_MODELS: Final = {
-    PROVIDER_OPENAI: "gpt-5.6",
-    PROVIDER_ANTHROPIC: "claude-sonnet-5",
-    PROVIDER_DEEPSEEK: "deepseek-v4-flash",
+    PROVIDER_OPENAI: "gpt-6.1-sol",
+    PROVIDER_ANTHROPIC: "claude-sonnet-5-5",
+    PROVIDER_DEEPSEEK: "deepseek-flash",
     PROVIDER_OPENAI_COMPATIBLE: "",
 }
 

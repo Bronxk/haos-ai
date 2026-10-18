@@ -164,7 +164,7 @@ def test_provider_factory_only_omits_tool_choice_for_deepseek() -> None:
         None,  # type: ignore[arg-type]
         "test-key",
         "https://api.deepseek.com",
-        "deepseek-v4-flash",
+        "deepseek-flash",
     )
     compatible = create_provider(
         "openai_compatible",

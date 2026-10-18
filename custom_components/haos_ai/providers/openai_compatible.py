@@ -148,7 +148,7 @@ class OpenAICompatibleClient(ProviderClient):
         )
 
     async def validate(self) -> None:
-        """Use the models endpoint when available."""
+        """Probe the configured model with a minimal chat completion."""
         await self._post_json(
             "/chat/completions",
             {
