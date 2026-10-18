@@ -298,7 +298,14 @@ class ProviderClient(ABC):
                 json=payload,
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=timeout),
+                allow_redirects=False,
             ) as response:
+                if 300 <= response.status < 400:
+                    # Never follow: a redirect would forward the API key to
+                    # another origin and bypass the https/local-only URL check.
+                    raise ProviderError(
+                        "Provider endpoint redirected; configure the final URL"
+                    )
                 if response.status in (401, 403):
                     raise ProviderAuthError("Provider rejected the API key")
                 if response.status == 429:
