@@ -35,6 +35,7 @@ from .privacy import (
     ADDRESS_KEYS,
     REDACTION_MARKER,
     exclude_ignored_entities,
+    normalize_key,
     sanitize,
 )
 from .providers.base import ToolSpec
@@ -59,8 +60,25 @@ STATE_DOMAINS_WITHOUT_ROUTINES = frozenset(
 SENSITIVE_DOMAINS = frozenset({"alarm_control_panel", "camera"})
 # Entity-id fragments that mark a sensor whose free-text STATE is an address
 # or place description (for example the Companion App geocoded location).
-LOCATION_TEXT_MARKERS = ("geocoded", "address", "location")
+# Plain "location" is deliberately absent: it also names presence helpers and
+# room sensors whose state is not an address.
+LOCATION_TEXT_MARKERS = ("geocoded", "address")
+# Object-id fragments of sensors that are network addresses, not places.
+NON_PLACE_ADDRESS_MARKERS = (
+    "ip_address",
+    "mac_address",
+    "wan_ip",
+    "ipv4",
+    "ipv6",
+    "bluetooth_address",
+    "ble_address",
+    "device_address",
+)
 STATES_WITHOUT_VALUE = frozenset({"unknown", "unavailable", "none", ""})
+# Enumerations and presence values that are never a street or place name.
+NON_ADDRESS_STATES = frozenset(
+    {"on", "off", "home", "not_home", "true", "false", "open", "closed"}
+)
 
 # The model-facing automation listing is capped so a huge installation cannot
 # flood one tool result. Internal checks must not rely on this window.
@@ -143,21 +161,49 @@ class ContextEngine:
         domain, _, object_id = entity_id.partition(".")
         if domain == "zone":
             return False
-        if any(marker in object_id.casefold() for marker in LOCATION_TEXT_MARKERS):
+        folded = object_id.casefold()
+        if (
+            domain == "sensor"
+            and any(marker in folded for marker in LOCATION_TEXT_MARKERS)
+            and not any(marker in folded for marker in NON_PLACE_ADDRESS_MARKERS)
+        ):
             return True
-        return any(str(key).casefold() in ADDRESS_KEYS for key in attributes)
+        return any(normalize_key(key) in ADDRESS_KEYS for key in attributes)
+
+    def _zone_names(self) -> set[str]:
+        """Names and ids of existing zones; these are not private addresses."""
+        names: set[str] = set()
+        for zone in self.hass.states.async_all("zone"):
+            names.add(zone.entity_id.split(".", 1)[1].casefold())
+            friendly = zone.attributes.get("friendly_name")
+            if friendly:
+                names.add(str(friendly).casefold())
+        return names
 
     def _redact_location_state(
-        self, entity_id: str, attributes: Mapping[str, Any], value: str
+        self,
+        entity_id: str,
+        attributes: Mapping[str, Any],
+        value: str,
+        *,
+        record: bool = True,
     ) -> str:
         """Withhold a free-text address state unless exact location is on."""
         if self.include_exact_location:
             return value
-        if value.casefold() in STATES_WITHOUT_VALUE or self._is_numeric(value):
+        folded = value.casefold()
+        if (
+            folded in STATES_WITHOUT_VALUE
+            or folded in NON_ADDRESS_STATES
+            or self._is_numeric(value)
+        ):
             return value
         if not self._is_location_text_entity(entity_id, attributes):
             return value
-        self._state_redactions.append(f"{entity_id}.state")
+        if folded in self._zone_names():
+            return value
+        if record:
+            self._state_redactions.append(f"{entity_id}.state")
         return REDACTION_MARKER
 
     def _merge_redactions(self, redactions: list[str]) -> list[str]:
@@ -443,12 +489,15 @@ class ContextEngine:
                 else state.attributes.get("friendly_name")
             ) or state.entity_id
             shown_state = self._redact_location_state(
-                state.entity_id, state.attributes, state.state
+                state.entity_id, state.attributes, state.state, record=False
             )
             # Match on the redacted value so a query cannot probe the address.
             haystack = f"{state.entity_id} {name} {shown_state}".casefold()
             if query and query not in haystack:
                 continue
+            if shown_state != state.state:
+                # Only entities actually returned count towards the receipt.
+                self._state_redactions.append(f"{state.entity_id}.state")
             rows.append(
                 {
                     "entity_id": state.entity_id,
@@ -489,12 +538,14 @@ class ContextEngine:
         if (
             state
             and not self.include_exact_location
-            and "name" in attributes
             and self._is_location_text_entity(entity_id, attributes)
         ):
-            # A geocoded sensor's name attribute is the place name or street.
-            attributes["name"] = REDACTION_MARKER
-            self._state_redactions.append(f"{entity_id}.attributes.name")
+            # A geocoded sensor's name attribute is the place name or street
+            # (iOS sends it as "Name").
+            for key in attributes:
+                if normalize_key(key) == "name":
+                    attributes[key] = REDACTION_MARKER
+                    self._state_redactions.append(f"{entity_id}.attributes.{key}")
         return {
             "entity_id": entity_id,
             "state": (
@@ -718,7 +769,8 @@ class ContextEngine:
             raw = getattr(automation, "raw_config", None)
             if not raw or self._is_excluded(automation.entity_id):
                 continue
-            if automation_id := raw.get("id"):
+            automation_id = raw.get("id")
+            if automation_id is not None and str(automation_id) != "":
                 identifiers.add(str(automation_id))
         return identifiers
 
@@ -741,7 +793,11 @@ class ContextEngine:
                 err,
             )
             return set()
-        file_ids = {str(item["id"]) for item in stored if item.get("id")}
+        file_ids = {
+            str(item["id"])
+            for item in stored
+            if item.get("id") is not None and str(item["id"]) != ""
+        }
         return loaded & file_ids
 
     def is_verified_source(self, source_type: str, source_id: str) -> bool:

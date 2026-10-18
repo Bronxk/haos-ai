@@ -608,14 +608,22 @@ class Advisor:
                         for key, value in raw_automation.items()
                         if key not in {"explanation", "target_automation_id"}
                     }
-                    requested_target = str(
-                        raw_automation.get("target_automation_id", "")
+                    raw_target = raw_automation.get("target_automation_id")
+                    requested_target = (
+                        "" if raw_target is None else str(raw_target)
                     )
-                    target_id = (
-                        requested_target[:120]
-                        if requested_target in known_automation_ids
-                        else None
-                    )
+                    target_id = None
+                    if requested_target != "":
+                        if requested_target not in known_automation_ids:
+                            # Downgrading to a create would leave the original
+                            # running next to a duplicate.
+                            _LOGGER.warning(
+                                "Dropping update proposal for automation %s: "
+                                "not editable here",
+                                requested_target[:120],
+                            )
+                            continue
+                        target_id = requested_target[:120]
                     validation = await async_validate_automation(self.hass, config)
                     automation = AutomationProposal(
                         config=config,

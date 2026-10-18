@@ -57,6 +57,24 @@ async def main() -> None:
     hass.states.async_set("sensor.temperature", "21.5", {"unit_of_measurement": "C"})
     hass.states.async_set("sensor.living_room_mood", "cozy", {})
     hass.states.async_set("zone.home", "0", {"friendly_name": "Home"})
+    # Presence/enumeration/network states must stay readable.
+    hass.states.async_set("sensor.wan_ip_address", "1.2.3.4", {})
+    hass.states.async_set("binary_sensor.location_tracking", "on", {})
+    hass.states.async_set("device_tracker.phone_location", "home", {})
+    hass.states.async_set("sensor.washer_location", "Keller", {})
+    hass.states.async_set("sensor.phone_geocoded_zone", "Home", {})
+    # iOS Companion App style Title Case attributes.
+    hass.states.async_set(
+        "sensor.ios_place",
+        "Example Street 12",
+        {
+            "Name": "Example Street 12",
+            "Sub Thoroughfare": "12",
+            "Postal Code": "10115",
+            "ISO Country Code": "DE",
+            "Areas Of Interest": "Cafe",
+        },
+    )
     for index in range(101):
         hass.states.async_set(f"sensor.unavailable_{index}", "unavailable")
     before_states = {
@@ -67,7 +85,7 @@ async def main() -> None:
     before_device_count = len(dr.async_get(hass).devices)
     engine = ContextEngine(hass)
     preview = await engine.async_baseline_preview()
-    assert preview["payload"]["home_summary"]["counts"]["states"] == 106
+    assert preview["payload"]["home_summary"]["counts"]["states"] == 112
     candidates = preview["payload"]["local_candidates"]
     assert candidates["counts"]["unavailable"] == 101
     assert len(candidates["unavailable_entities"]) == 100
@@ -95,6 +113,26 @@ async def main() -> None:
     assert rows["sensor.living_room_mood"]["state"] == "cozy"
     assert f"{geo}.state" in found["privacy"]["redacted_fields"]
     assert "Example Street" not in str(found["data"])
+    assert rows["sensor.wan_ip_address"]["state"] == "1.2.3.4"
+    assert rows["sensor.washer_location"]["state"] == "Keller"
+    assert rows["sensor.phone_geocoded_zone"]["state"] == "Home"
+    ios = rows["sensor.ios_place"]
+    assert ios["state"] == "[REDACTED]"
+    for entity_id, expected in (
+        ("binary_sensor.location_tracking", "on"),
+        ("device_tracker.phone_location", "home"),
+    ):
+        plain = await engine.async_execute_tool(
+            "get_entity_detail", {"entity_id": entity_id}, {}
+        )
+        assert plain["data"]["state"] == expected, entity_id
+    ios_detail = await engine.async_execute_tool(
+        "get_entity_detail", {"entity_id": "sensor.ios_place"}, {}
+    )
+    for key in ("Name", "Sub Thoroughfare", "Postal Code", "ISO Country Code",
+                "Areas Of Interest"):
+        assert ios_detail["data"]["attributes"][key] == "[REDACTED]", key
+    assert "Example Street" not in str(ios_detail["data"])
     probe = await engine.async_execute_tool(
         "search_entities", {"query": "berlin", "domain": None, "area_id": None}, {}
     )

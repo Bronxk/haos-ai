@@ -56,8 +56,13 @@ class FakeContext:
     def automation_ids(self):
         return set()
 
+    editable_ids: set = set()
+
     async def async_editable_automation_ids(self):
-        return set()
+        return set(self.editable_ids)
+
+    def is_verified_source(self, source_type, source_id):
+        return True
 
     def hygiene_candidates(self):
         return {}
@@ -167,6 +172,62 @@ async def main() -> None:
     usage = advisor.store.monthly_usage()
     assert usage["input_tokens"] == 100, usage
     assert usage["output_tokens"] == 20, usage
+    # 6. An update proposal whose target is not editable is dropped (never
+    # downgraded to a create that would duplicate the running automation); a
+    # proposal without a target stays a create, an editable target stays an
+    # update.
+    from types import SimpleNamespace
+
+    async def fake_validate(hass, config):
+        return SimpleNamespace(valid=True, errors={})
+
+    original_validate = advisor_module.async_validate_automation
+    advisor_module.async_validate_automation = fake_validate
+
+    def item(title, **automation):
+        return {
+            "kind": "automation",
+            "title": title,
+            "summary": "s",
+            "rationale": "r",
+            "evidence": [
+                {
+                    "source_type": "entity",
+                    "source_id": "light.kitchen",
+                    "observation": "o",
+                }
+            ],
+            "automation": {
+                "alias": title,
+                "trigger": [],
+                "action": [],
+                **automation,
+            },
+        }
+
+    try:
+        advisor = make_advisor(FakeProvider("unused"))
+        advisor.context.editable_ids = {"0", "known"}
+        parsed = await advisor._async_parse_recommendations(
+            {
+                "recommendations": [
+                    item("package one", target_automation_id="package_only"),
+                    item("fresh one"),
+                    item("known one", target_automation_id="known"),
+                    item("zero one", target_automation_id="0"),
+                ]
+            },
+            "scan",
+            "receipt",
+        )
+    finally:
+        advisor_module.async_validate_automation = original_validate
+    targets = {r.title: r.automation.target_id for r in parsed}
+    assert targets == {
+        "fresh one": None,
+        "known one": "known",
+        "zero one": "0",
+    }, targets
     print("budget repair smoke ok")
 
 

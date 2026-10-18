@@ -148,3 +148,27 @@ def test_address_and_gps_attributes_follow_exact_location_setting() -> None:
     kept, kept_paths = sanitize(payload, include_exact_location=True)
     assert kept == payload
     assert kept_paths == []
+
+
+def test_title_case_and_extra_address_keys_are_redacted() -> None:
+    payload = {
+        "Sub Thoroughfare": "12",
+        "Postal Code": "10115",
+        "ISO Country Code": "DE",
+        "Areas Of Interest": ["Cafe"],
+        "Name": "Example Street 12",
+        "feature_name": "12",
+        "premises": "Block A",
+        "origin": "52.5,13.4",
+        "destination": "Example Street 12, Berlin",
+        "unit_of_measurement": "C",
+    }
+    cleaned, _ = sanitize(payload)
+    for key in payload:
+        if key in {"Name", "unit_of_measurement"}:
+            # Plain "name" is never redacted by the generic key filter.
+            assert cleaned[key] == payload[key], key
+        else:
+            assert cleaned[key] == "[REDACTED]", key
+    kept, _ = sanitize(payload, include_exact_location=True)
+    assert kept == payload

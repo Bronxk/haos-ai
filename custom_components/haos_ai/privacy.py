@@ -39,11 +39,15 @@ ADDRESS_KEYS = frozenset(
         "administrative_area",
         "areas_of_interest",
         "country",
+        "destination",
+        "feature_name",
         "formatted_address",
         "iso_country_code",
         "locality",
+        "origin",
         "postal_address",
         "postal_code",
+        "premises",
         "street",
         "street_address",
         "sub_administrative_area",
@@ -91,8 +95,13 @@ def exclude_ignored_entities(value: Any, ignored: set[str]) -> Any:
     return value
 
 
+def normalize_key(key: Any) -> str:
+    """Fold case and treat spaces/hyphens as underscores (iOS Title Case keys)."""
+    return str(key).casefold().replace(" ", "_").replace("-", "_")
+
+
 def _is_sensitive_key(key: str, include_exact_location: bool) -> bool:
-    normalized = key.casefold()
+    normalized = normalize_key(key)
     if normalized in SAFE_LOCATION_KEYS:
         return False
     if normalized in LOCATION_KEYS or normalized in ADDRESS_KEYS:
