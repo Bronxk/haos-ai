@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+- Frontend toolchain upgraded to Vite 8, Vitest 5 and TypeScript 7 (the build
+  failed on CI because Vite 8 no longer bundles esbuild; the default minifier is
+  used now). The committed panel bundle was rebuilt.
+- Approvals: "saved" no longer doubles as "applied". Applying a suggestion
+  stores `applied_at`/`applied_change_id`; a bookmarked suggestion can now be
+  approved, and dismiss/restore can no longer re-open an applied one for a
+  second write. Suggestions stored by earlier versions are backfilled from the
+  ledger; bookmarks of unknown origin stay locked, as before. A failing
+  automation reload after the file was written is logged and still recorded.
+- Token budget: scan tokens are counted even when the repair call or the
+  recommendation parsing fails, reported usage is the full total, and a scan or
+  chat is cut off after 15 / 10 minutes so a slow model cannot hold the lock.
+- Reconfigure keeps the scan profile and its key; a stored key is only reused
+  when provider and base URL are unchanged.
+- Settings changes (reconfigure, options, panel) are refused while a scan, chat
+  or approval is running instead of orphaning it.
+- Assist conversations are no longer listed in or readable from the panel, and
+  their user id is kept out of receipts and progress events.
+- Provider requests no longer follow redirects, so an API key cannot be sent to
+  a redirect target.
+- Privacy: address-like sensors (for example a geocoded location) and address
+  attributes are redacted while exact location is off.
+- Missing-reference detection covers every automation (it stopped at 50), and
+  update proposals are limited to automations in `automations.yaml`, the only
+  file approval can write.
+- Failures that used to be silent are logged: invalid scan time, skipped
+  scheduled scans, tool failures, dropped usage deltas, Recorder, Blueprint and
+  Supervisor lookups. `haos_ai.scan` now raises for a non-admin caller or when
+  HAOS AI is busy or not loaded, and Assist answers a provider error with a
+  readable message.
+- Panel: clipboard fallback over plain http, deferred download URL revoke,
+  correct resubscribe after re-attach, a failed scan/chat clears the busy state
+  (the backend now publishes a `failed` stage), a scan finished elsewhere
+  refreshes the overview, and applied suggestions show "Applied".
+- Browser check now also covers 280 px (Galaxy Fold cover screen) and every
+  panel view at every width.
 - Updated default models per the providers' current docs: OpenAI `gpt-6.1-sol`
   (was `gpt-5.6`), Anthropic `claude-sonnet-5-5` (was `claude-sonnet-5`),
   DeepSeek `deepseek-flash` (was the now-deprecated `deepseek-v4-flash`
