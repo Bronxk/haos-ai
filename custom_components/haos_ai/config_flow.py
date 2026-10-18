@@ -283,12 +283,16 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             str(candidate[CONF_BASE_URL])
                         ),
                     }
+                    # Merge into the stored data: the form only edits the main
+                    # provider, so the separate scan profile keys (and its API
+                    # key) must survive. The scan profile is cleared through
+                    # the panel, never through this form.
                     # __init__ registers a config entry update listener, so the
                     # reloading variant would reload the entry twice; Home
                     # Assistant errors on that combination from 2026.12.
                     return self.async_update_and_abort(
                         entry,
-                        data=normalized,
+                        data={**entry.data, **normalized},
                         title=(
                             f"HAOS AI · "
                             f"{PROVIDER_LABELS[str(candidate[CONF_PROVIDER])]}"
