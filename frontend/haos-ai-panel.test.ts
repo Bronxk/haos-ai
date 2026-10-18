@@ -507,4 +507,186 @@ describe("haos-ai-panel", () => {
     expect(button?.hasAttribute("icon")).toBe(false);
     expect(button?.querySelector('ha-icon[icon="mdi:plus"]')).not.toBeNull();
   });
+
+  const makeOverview = (suggestions: Record<string, unknown>[] = []) => ({
+    version: "1.0.2",
+    provider: "deepseek",
+    model: "deepseek-flash",
+    base_url: "https://api.deepseek.com",
+    provider_options: [{ id: "deepseek", label: "DeepSeek", default_model: "deepseek-flash", default_base_url: "https://api.deepseek.com" }],
+    goal_presets: [],
+    options: { schedule: "manual", history_days: 30 },
+    suggestions,
+    counts: { new: suggestions.length, saved: 0, dismissed: 0 },
+    scan_runs: [],
+    preferences: {
+      goals: [], ignored_categories: [], ignored_entities: [], notes: [], quiet_hours: null,
+      change_permissions: {
+        create_automations: true,
+        update_automations: false,
+        remove_entities: false,
+        remove_devices: false,
+      },
+    },
+  });
+  const makeSuggestion = (extra: Record<string, unknown> = {}) => ({
+    id: "suggestion-x",
+    title: "Hall light",
+    summary: "Create a hall light routine.",
+    rationale: "The pattern is repeated.",
+    kind: "automation",
+    status: "new",
+    confidence: 0.9,
+    impact: "medium",
+    created_at: new Date().toISOString(),
+    evidence: [],
+    automation: {
+      explanation: "Turns on the hall light.",
+      yaml: "alias: Hall light\ntriggers: []\nactions: []\n",
+      validation: { valid: true, errors: {} },
+    },
+    ...extra,
+  });
+  const settle = async (panel: HTMLElement & { updateComplete: Promise<unknown> }) => {
+    await panel.updateComplete;
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    await panel.updateComplete;
+  };
+  const buttonByText = (panel: HTMLElement, text: string) =>
+    [...(panel.shadowRoot?.querySelectorAll("ha-button") ?? [])].find((b) =>
+      b.textContent?.includes(text),
+    ) as HTMLElement | undefined;
+
+  it("hides the approve button and shows Applied for applied suggestions", async () => {
+    const sendMessagePromise = vi.fn().mockResolvedValue(
+      makeOverview([makeSuggestion({ applied_at: "2026-05-01T10:00:00Z", applied_change_id: "chg-1" })]),
+    );
+    const panel = document.createElement("haos-ai-panel");
+    document.body.append(panel);
+    panel.hass = { connection: { sendMessagePromise } };
+    await settle(panel);
+    panel.shadowRoot?.querySelector<HTMLButtonElement>(".suggestion-row")?.click();
+    await panel.updateComplete;
+
+    expect(buttonByText(panel, "Review & create")).toBeUndefined();
+    const label = panel.shadowRoot?.querySelector(".saved-label");
+    expect(label?.textContent).toContain("Applied");
+    expect(label?.getAttribute("title")).toContain("Applied");
+    expect(buttonByText(panel, "Save")).toBeDefined();
+  });
+
+  it("falls back to execCommand when the clipboard API is unavailable", async () => {
+    const sendMessagePromise = vi.fn().mockResolvedValue(makeOverview([makeSuggestion()]));
+    const execCommand = vi.fn().mockReturnValue(true);
+    Object.defineProperty(document, "execCommand", { value: execCommand, configurable: true });
+    vi.stubGlobal("navigator", { clipboard: undefined });
+    try {
+      const panel = document.createElement("haos-ai-panel");
+      document.body.append(panel);
+      panel.hass = { connection: { sendMessagePromise } };
+      await settle(panel);
+      panel.shadowRoot?.querySelector<HTMLButtonElement>(".suggestion-row")?.click();
+      await panel.updateComplete;
+      buttonByText(panel, "Copy")?.click();
+      await settle(panel);
+
+      expect(execCommand).toHaveBeenCalledWith("copy");
+      expect(panel.shadowRoot?.querySelector(".alert")).toBeNull();
+      expect(document.querySelector("textarea")).toBeNull();
+
+      execCommand.mockReturnValue(false);
+      buttonByText(panel, "Copy")?.click();
+      await settle(panel);
+      expect(panel.shadowRoot?.querySelector(".alert")?.textContent).toContain(
+        "Could not copy",
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("defers revoking the download object URL", async () => {
+    vi.useFakeTimers();
+    const createObjectURL = vi.fn().mockReturnValue("blob:x");
+    const revokeObjectURL = vi.fn();
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    try {
+      const sendMessagePromise = vi.fn().mockResolvedValue(makeOverview([makeSuggestion()]));
+      const panel = document.createElement("haos-ai-panel");
+      document.body.append(panel);
+      panel.hass = { connection: { sendMessagePromise } };
+      await vi.advanceTimersByTimeAsync(0);
+      await panel.updateComplete;
+      panel.shadowRoot?.querySelector<HTMLButtonElement>(".suggestion-row")?.click();
+      await panel.updateComplete;
+      buttonByText(panel, "Download")?.click();
+
+      expect(click).toHaveBeenCalled();
+      expect(revokeObjectURL).not.toHaveBeenCalled();
+      expect(document.querySelector("a[download]")).toBeNull();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:x");
+    } finally {
+      click.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears the busy state on a failed progress event", async () => {
+    let handler: ((event: { data: Record<string, unknown> }) => void) | undefined;
+    const subscribeEvents = vi.fn(async (cb) => {
+      handler = cb;
+      return vi.fn();
+    });
+    const sendMessagePromise = vi.fn().mockResolvedValue(makeOverview());
+    const panel = document.createElement("haos-ai-panel");
+    document.body.append(panel);
+    panel.hass = { connection: { sendMessagePromise, subscribeEvents } };
+    await settle(panel);
+
+    handler?.({ data: { stage: "provider" } });
+    await panel.updateComplete;
+    expect(panel.shadowRoot?.querySelector("[role=progressbar]")).not.toBeNull();
+    handler?.({ data: { stage: "failed" } });
+    await panel.updateComplete;
+    expect(panel.shadowRoot?.querySelector("[role=progressbar]")).toBeNull();
+  });
+
+  it("reloads the overview when a foreign scan completes", async () => {
+    let handler: ((event: { data: Record<string, unknown> }) => void) | undefined;
+    const subscribeEvents = vi.fn(async (cb) => {
+      handler = cb;
+      return vi.fn();
+    });
+    const sendMessagePromise = vi.fn().mockResolvedValue(makeOverview());
+    const panel = document.createElement("haos-ai-panel");
+    document.body.append(panel);
+    panel.hass = { connection: { sendMessagePromise, subscribeEvents } };
+    await settle(panel);
+    const overviewCalls = () =>
+      sendMessagePromise.mock.calls.filter(([m]) => m.type === "haos_ai/overview").length;
+    const before = overviewCalls();
+    handler?.({ data: { stage: "complete" } });
+    await settle(panel);
+    expect(overviewCalls()).toBe(before + 1);
+  });
+
+  it("resubscribes after being detached and re-attached", async () => {
+    const unsubscribe = vi.fn();
+    const subscribeEvents = vi.fn(async () => unsubscribe);
+    const sendMessagePromise = vi.fn().mockResolvedValue(makeOverview());
+    const panel = document.createElement("haos-ai-panel");
+    document.body.append(panel);
+    panel.hass = { connection: { sendMessagePromise, subscribeEvents } };
+    await settle(panel);
+    expect(subscribeEvents).toHaveBeenCalledTimes(1);
+
+    panel.remove();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    document.body.append(panel);
+    await settle(panel);
+    expect(subscribeEvents).toHaveBeenCalledTimes(2);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
 });

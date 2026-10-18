@@ -4598,13 +4598,13 @@ var $ = class extends Ne {
 			update_automations: !1,
 			remove_entities: !1,
 			remove_devices: !1
-		}, this.quietStart = "22:00", this.quietEnd = "07:00", this.providerDraft = "", this.modelDraft = "", this.baseUrlDraft = "", this.apiKeyDraft = "", this.showConnectionAdvanced = !1, this.historyDays = 30, this.includeExactLocation = !1, this.schedule = "manual", this.scheduleTime = "03:00", this.scheduleWeekday = 0, this.notifyNewSuggestions = !0, this.settingsNotice = "", this.copied = !1, this.draftYaml = "", this.draftError = "", this.dialog = null, this.feedbackReason = "", this.feedbackNote = "", this.renameText = "", this.scanProfileEnabled = !1, this.scanProviderDraft = "", this.scanModelDraft = "", this.scanBaseUrlDraft = "", this.scanApiKeyDraft = "", this.diffError = "", this.diffLoading = !1, this.started = !1, this.overviewRequest = 0, this.draftDirty = !1;
+		}, this.quietStart = "22:00", this.quietEnd = "07:00", this.providerDraft = "", this.modelDraft = "", this.baseUrlDraft = "", this.apiKeyDraft = "", this.showConnectionAdvanced = !1, this.historyDays = 30, this.includeExactLocation = !1, this.schedule = "manual", this.scheduleTime = "03:00", this.scheduleWeekday = 0, this.notifyNewSuggestions = !0, this.settingsNotice = "", this.copied = !1, this.draftYaml = "", this.draftError = "", this.dialog = null, this.feedbackReason = "", this.feedbackNote = "", this.renameText = "", this.scanProfileEnabled = !1, this.scanProviderDraft = "", this.scanModelDraft = "", this.scanBaseUrlDraft = "", this.scanApiKeyDraft = "", this.diffError = "", this.diffLoading = !1, this.started = !1, this.subscription = 0, this.localRuns = 0, this.overviewRequest = 0, this.draftDirty = !1;
 	}
 	connectedCallback() {
 		super.connectedCallback(), this.start();
 	}
 	disconnectedCallback() {
-		this.unsubscribeProgress?.(), this.progressTimer && window.clearTimeout(this.progressTimer), super.disconnectedCallback();
+		this.subscription += 1, this.unsubscribeProgress?.(), this.unsubscribeProgress = void 0, this.progressTimer && window.clearTimeout(this.progressTimer), this.progressTimer = void 0, this.started = !1, super.disconnectedCallback();
 	}
 	willUpdate(e) {
 		if (e.has("hass") && this.start(), e.has("selectedId")) {
@@ -4616,11 +4616,30 @@ var $ = class extends Ne {
 		this.hass && !this.started && (this.started = !0, this.subscribeToProgress(), this.loadOverview());
 	}
 	async subscribeToProgress() {
-		this.hass?.connection.subscribeEvents && (this.unsubscribeProgress = await this.hass.connection.subscribeEvents((e) => {
-			this.progress = e.data, this.busy = e.data.stage !== "complete", e.data.stage === "complete" && (this.progressTimer && window.clearTimeout(this.progressTimer), this.progressTimer = window.setTimeout(() => {
-				this.progress = void 0, this.busy = !1;
-			}, 1400));
-		}, "haos_ai_progress"));
+		if (!this.hass?.connection.subscribeEvents) return;
+		let e = ++this.subscription;
+		this.unsubscribeProgress?.(), this.unsubscribeProgress = void 0;
+		let t;
+		try {
+			t = await this.hass.connection.subscribeEvents((e) => this.handleProgress(e.data), "haos_ai_progress");
+		} catch (e) {
+			console.error("HAOS AI: progress subscription failed", e);
+			return;
+		}
+		if (e !== this.subscription) {
+			t();
+			return;
+		}
+		this.unsubscribeProgress = t;
+	}
+	handleProgress(e) {
+		if (this.progressTimer && window.clearTimeout(this.progressTimer), this.progressTimer = void 0, e.stage === "failed") {
+			this.progress = void 0, this.busy = !1;
+			return;
+		}
+		this.progress = e, this.busy = e.stage !== "complete", e.stage === "complete" && (this.localRuns === 0 && this.loadOverview(), this.progressTimer = window.setTimeout(() => {
+			this.progress = void 0, this.busy = !1;
+		}, 1400));
 	}
 	async call(e, t = {}) {
 		if (!this.hass) throw Error("Home Assistant is not ready");
@@ -4692,13 +4711,13 @@ var $ = class extends Ne {
 		this.preview = void 0, this.busy = !0, this.progress = {
 			stage: "context",
 			progress: .05
-		}, this.error = "";
+		}, this.error = "", this.localRuns += 1;
 		try {
 			await this.call("haos_ai/scan", { confirm_context: !0 }), await this.loadOverview(), this.filter = "new", this.tab === "activity" && await this.loadActivity();
 		} catch (e) {
 			this.error = this.describeError(e), this.progress = void 0;
 		} finally {
-			this.busy = !1;
+			--this.localRuns, this.busy = !1;
 		}
 	}
 	async updateSuggestion(e, t, n) {
@@ -4782,7 +4801,7 @@ var $ = class extends Ne {
 				role: "user",
 				content: e,
 				created_at: (/* @__PURE__ */ new Date()).toISOString()
-			}], this.busy = !0, this.progress = { stage: "provider" }, this.error = "";
+			}], this.busy = !0, this.progress = { stage: "provider" }, this.error = "", this.localRuns += 1;
 			try {
 				let t = await this.call("haos_ai/chat", {
 					thread_id: this.threadId,
@@ -4792,7 +4811,7 @@ var $ = class extends Ne {
 			} catch (e) {
 				this.error = this.describeError(e), await this.loadThread();
 			} finally {
-				this.busy = !1, this.progress = void 0;
+				--this.localRuns, this.busy = !1, this.progress = void 0;
 			}
 		}
 	}
@@ -5061,15 +5080,31 @@ var $ = class extends Ne {
 		}
 	}
 	async copyYaml(e = this.draftYaml) {
-		await navigator.clipboard.writeText(e), this.copied = !0, window.setTimeout(() => this.copied = !1, 1600);
+		return await this.writeClipboard(e) ? (this.copied = !0, window.setTimeout(() => this.copied = !1, 1600), !0) : (this.error = "Could not copy to the clipboard. Select the YAML and copy it manually.", !1);
+	}
+	async writeClipboard(e) {
+		try {
+			if (navigator.clipboard?.writeText) return await navigator.clipboard.writeText(e), !0;
+		} catch (e) {
+			console.warn("HAOS AI: clipboard API failed, using fallback", e);
+		}
+		let t = document.createElement("textarea");
+		t.value = e, t.setAttribute("readonly", ""), t.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none", document.body.append(t);
+		try {
+			return t.select(), document.execCommand("copy");
+		} catch (e) {
+			return console.warn("HAOS AI: execCommand copy failed", e), !1;
+		} finally {
+			t.remove();
+		}
 	}
 	downloadYaml(e) {
 		if (!this.draftYaml) return;
 		let t = new Blob([this.draftYaml], { type: "application/x-yaml" }), n = URL.createObjectURL(t), r = document.createElement("a");
-		r.href = n, r.download = `${e.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "automation"}.yaml`, r.click(), URL.revokeObjectURL(n);
+		r.href = n, r.download = `${e.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "automation"}.yaml`, document.body.append(r), r.click(), r.remove(), window.setTimeout(() => URL.revokeObjectURL(n), 1e3);
 	}
 	async copyAndOpenEditor() {
-		await this.copyYaml(), this.navigate("/config/automation/new");
+		await this.copyYaml() && this.navigate("/config/automation/new");
 	}
 	reviseInChat(e) {
 		this.newThread(), this.chatText = `Help me revise this proposed automation. Keep it read only, explain the changes, and return one complete Home Assistant YAML block.\n\nTitle: ${e.title}\n\nCurrent YAML:\n\`\`\`yaml\n${this.draftYaml}\n\`\`\``, this.changeTab("chat");
@@ -5220,7 +5255,8 @@ var $ = class extends Ne {
 			provider: "Asking the advisor",
 			tool: "Inspecting your setup",
 			validate: "Validating suggestions",
-			complete: "Advisor request complete"
+			complete: "Advisor request complete",
+			failed: "Advisor request failed"
 		}[e.stage];
 	}
 	progressDetail(e) {
@@ -5342,7 +5378,7 @@ var $ = class extends Ne {
     `;
 	}
 	renderSuggestionDetail(e) {
-		let t = this.draftValidation ?? e.automation?.validation, n = this.changeFor(e), r = n ? this.canApply(n) : !1, i = e.automation?.explanation ?? e.automation?.config?.description ?? e.summary;
+		let t = this.draftValidation ?? e.automation?.validation, n = this.changeFor(e), r = n ? this.canApply(n) : !1, i = !!(e.applied_at || e.applied_change_id), a = e.automation?.explanation ?? e.automation?.config?.description ?? e.summary;
 		return D`
       <div class="detail-content">
         <ha-button
@@ -5380,7 +5416,7 @@ var $ = class extends Ne {
         ${e.automation ? D`
               <section class="detail-section">
                 <h3>What the automation does</h3>
-                <p>${i}</p>
+                <p>${a}</p>
               </section>
               <section class="detail-section yaml-section">
                 <div class="section-heading">
@@ -5452,7 +5488,7 @@ var $ = class extends Ne {
                     Dismiss
                   </ha-button>
                 `}
-            ${n && r && e.status !== "dismissed" ? D`
+            ${n && r && e.status !== "dismissed" && !i ? D`
                   <ha-button
                     appearance="accent"
                     ?disabled=${this.busy || (n.kind === "create_automation" || n.kind === "update_automation") && !t?.valid}
@@ -5462,6 +5498,12 @@ var $ = class extends Ne {
                     ${n.kind === "create_automation" ? "Review & create" : n.kind === "update_automation" ? "Review & update" : "Review removal"}
                   </ha-button>
                 ` : O}
+            ${i ? D`<span
+                  class="saved-label"
+                  title=${e.applied_at ? `Applied ${new Date(e.applied_at).toLocaleString()}` : "Applied"}
+                >
+                  <ha-icon icon="mdi:check-circle-outline"></ha-icon> Applied
+                </span>` : O}
             ${e.status === "saved" ? D`<span class="saved-label">
                   <ha-icon icon="mdi:bookmark-check"></ha-icon> Saved
                 </span>` : D`

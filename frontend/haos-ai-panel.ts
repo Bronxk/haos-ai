@@ -76,6 +76,8 @@ interface Suggestion {
   last_seen_at?: string;
   occurrences?: number;
   dismissal_reason?: string | null;
+  applied_at?: string | null;
+  applied_change_id?: string | null;
   evidence: Evidence[];
   automation?: {
     explanation?: string;
@@ -240,7 +242,7 @@ interface ContextPreview {
 }
 
 interface ProgressEvent {
-  stage: "context" | "provider" | "tool" | "validate" | "complete";
+  stage: "context" | "provider" | "tool" | "validate" | "complete" | "failed";
   progress?: number;
   tool?: string;
   scan_id?: string;
@@ -521,6 +523,10 @@ export class HaosAiPanel extends LitElement {
   private started = false;
   private unsubscribeProgress?: Unsubscribe;
   private progressTimer?: number;
+  /** Bumped on every (un)subscribe so a late subscribe result can detect it is stale. */
+  private subscription = 0;
+  /** Scans/chats this panel instance started itself (others are "foreign"). */
+  private localRuns = 0;
 
   public connectedCallback(): void {
     super.connectedCallback();
@@ -528,8 +534,13 @@ export class HaosAiPanel extends LitElement {
   }
 
   public disconnectedCallback(): void {
+    this.subscription += 1;
     this.unsubscribeProgress?.();
+    this.unsubscribeProgress = undefined;
     if (this.progressTimer) window.clearTimeout(this.progressTimer);
+    this.progressTimer = undefined;
+    // Home Assistant may re-attach this very element; let start() run again.
+    this.started = false;
     super.disconnectedCallback();
   }
 
@@ -553,20 +564,46 @@ export class HaosAiPanel extends LitElement {
 
   private async subscribeToProgress(): Promise<void> {
     if (!this.hass?.connection.subscribeEvents) return;
-    this.unsubscribeProgress = await this.hass.connection.subscribeEvents<ProgressEvent>(
-      (event) => {
-        this.progress = event.data;
-        this.busy = event.data.stage !== "complete";
-        if (event.data.stage === "complete") {
-          if (this.progressTimer) window.clearTimeout(this.progressTimer);
-          this.progressTimer = window.setTimeout(() => {
-            this.progress = undefined;
-            this.busy = false;
-          }, 1400);
-        }
-      },
-      "haos_ai_progress",
-    );
+    const generation = ++this.subscription;
+    this.unsubscribeProgress?.();
+    this.unsubscribeProgress = undefined;
+    let unsubscribe: Unsubscribe;
+    try {
+      unsubscribe = await this.hass.connection.subscribeEvents<ProgressEvent>(
+        (event) => this.handleProgress(event.data),
+        "haos_ai_progress",
+      );
+    } catch (error) {
+      console.error("HAOS AI: progress subscription failed", error);
+      return;
+    }
+    if (generation !== this.subscription) {
+      // Detached (or resubscribed) while the subscription was being set up.
+      unsubscribe();
+      return;
+    }
+    this.unsubscribeProgress = unsubscribe;
+  }
+
+  private handleProgress(data: ProgressEvent): void {
+    if (this.progressTimer) window.clearTimeout(this.progressTimer);
+    this.progressTimer = undefined;
+    if (data.stage === "failed") {
+      // Terminal: never leave an open panel stuck in the busy state.
+      this.progress = undefined;
+      this.busy = false;
+      return;
+    }
+    this.progress = data;
+    this.busy = data.stage !== "complete";
+    if (data.stage === "complete") {
+      // A scan we did not start (scheduled run, other tab) leaves our list stale.
+      if (this.localRuns === 0) void this.loadOverview();
+      this.progressTimer = window.setTimeout(() => {
+        this.progress = undefined;
+        this.busy = false;
+      }, 1400);
+    }
   }
 
   private async call<T>(type: string, extra = {}): Promise<T> {
@@ -741,6 +778,7 @@ export class HaosAiPanel extends LitElement {
     this.busy = true;
     this.progress = { stage: "context", progress: 0.05 };
     this.error = "";
+    this.localRuns += 1;
     try {
       await this.call("haos_ai/scan", { confirm_context: true });
       await this.loadOverview();
@@ -750,6 +788,7 @@ export class HaosAiPanel extends LitElement {
       this.error = this.describeError(error);
       this.progress = undefined;
     } finally {
+      this.localRuns -= 1;
       this.busy = false;
     }
   }
@@ -879,6 +918,7 @@ export class HaosAiPanel extends LitElement {
     this.busy = true;
     this.progress = { stage: "provider" };
     this.error = "";
+    this.localRuns += 1;
     try {
       const response = await this.call<{ message: ChatMessage }>("haos_ai/chat", {
         thread_id: this.threadId,
@@ -890,6 +930,7 @@ export class HaosAiPanel extends LitElement {
       this.error = this.describeError(error);
       await this.loadThread();
     } finally {
+      this.localRuns -= 1;
       this.busy = false;
       this.progress = undefined;
     }
@@ -1327,10 +1368,41 @@ export class HaosAiPanel extends LitElement {
     }
   }
 
-  private async copyYaml(yaml = this.draftYaml): Promise<void> {
-    await navigator.clipboard.writeText(yaml);
+  private async copyYaml(yaml = this.draftYaml): Promise<boolean> {
+    if (!(await this.writeClipboard(yaml))) {
+      this.error =
+        "Could not copy to the clipboard. Select the YAML and copy it manually.";
+      return false;
+    }
     this.copied = true;
     window.setTimeout(() => (this.copied = false), 1600);
+    return true;
+  }
+
+  /** Clipboard API needs a secure context; fall back to execCommand over plain http. */
+  private async writeClipboard(text: string): Promise<boolean> {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (error) {
+      console.warn("HAOS AI: clipboard API failed, using fallback", error);
+    }
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none";
+    document.body.append(area);
+    try {
+      area.select();
+      return document.execCommand("copy");
+    } catch (error) {
+      console.warn("HAOS AI: execCommand copy failed", error);
+      return false;
+    } finally {
+      area.remove();
+    }
   }
 
   private downloadYaml(item: Suggestion): void {
@@ -1343,12 +1415,14 @@ export class HaosAiPanel extends LitElement {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "") || "automation"}.yaml`;
+    document.body.append(anchor);
     anchor.click();
-    URL.revokeObjectURL(url);
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   private async copyAndOpenEditor(): Promise<void> {
-    await this.copyYaml();
+    if (!(await this.copyYaml())) return;
     this.navigate("/config/automation/new");
   }
 
@@ -1550,6 +1624,7 @@ export class HaosAiPanel extends LitElement {
       tool: "Inspecting your setup",
       validate: "Validating suggestions",
       complete: "Advisor request complete",
+      failed: "Advisor request failed",
     }[event.stage];
   }
 
@@ -1697,6 +1772,7 @@ export class HaosAiPanel extends LitElement {
     const changeAllowed = proposedChange
       ? this.canApply(proposedChange)
       : false;
+    const applied = !!(item.applied_at || item.applied_change_id);
     const explanation =
       item.automation?.explanation ??
       item.automation?.config?.description ??
@@ -1827,7 +1903,7 @@ export class HaosAiPanel extends LitElement {
                     Restore
                   </ha-button>
                 `}
-            ${proposedChange && changeAllowed && item.status !== "dismissed"
+            ${proposedChange && changeAllowed && item.status !== "dismissed" && !applied
               ? html`
                   <ha-button
                     appearance="accent"
@@ -1845,6 +1921,16 @@ export class HaosAiPanel extends LitElement {
                       : "Review removal"}
                   </ha-button>
                 `
+              : nothing}
+            ${applied
+              ? html`<span
+                  class="saved-label"
+                  title=${item.applied_at
+                    ? `Applied ${new Date(item.applied_at).toLocaleString()}`
+                    : "Applied"}
+                >
+                  <ha-icon icon="mdi:check-circle-outline"></ha-icon> Applied
+                </span>`
               : nothing}
             ${item.status !== "saved"
               ? html`
