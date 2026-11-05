@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Fixed the 15 findings from the November bug audit: approvals bind the reviewed
+  suggestion revision and current automation hash, native editor writes share
+  Home Assistant's lock, queued approvals recheck permissions, and reloads or
+  chat deletion cannot leave stale runtime writes behind.
+- OpenAI strict tool schemas and stateless reasoning replay now follow the
+  provider contract. Blueprint proposals use Home Assistant's native inputs,
+  substitution and full validation; ignored identifiers are also redacted from
+  embedded templates and comma-separated targets.
+- Delayed panel responses cannot overwrite newer YAML, another conversation or
+  another privacy receipt. Approval requires the matching reviewed diff, and
+  a failed automation reload is shown with manual recovery guidance.
 - Frontend toolchain upgraded to Vite 8, Vitest 5 and TypeScript 7 (the build
   failed on CI because Vite 8 no longer bundles esbuild; the default minifier is
   used now). The committed panel bundle was rebuilt.
