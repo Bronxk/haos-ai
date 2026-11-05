@@ -360,3 +360,86 @@ def test_provider_http_errors_do_not_echo_response_bodies() -> None:
         assert "provider-error-canary" not in str(err)
     else:
         raise AssertionError("Expected provider HTTP failure")
+
+
+class ResponsesPayloadClient(OpenAIClient):
+    """Replay deterministic Responses output through the actual tool loop."""
+
+    def __init__(self) -> None:
+        super().__init__(None, "test-key", "https://api.openai.com/v1", "test-model")
+        self.payloads: list[dict[str, Any]] = []
+        self.items = [
+            {
+                "type": "reasoning", "id": "reasoning-1", "summary": [],
+                "encrypted_content": "opaque-reasoning-canary", "status": "completed",
+            },
+            {
+                "type": "message", "id": "message-1", "role": "assistant",
+                "status": "completed", "content": [
+                    {"type": "output_text", "text": "Inspecting.", "annotations": []}
+                ],
+            },
+            {
+                "type": "function_call", "id": "function-1", "call_id": "call-1",
+                "name": "inspect", "arguments": "{}", "status": "completed",
+            },
+        ]
+
+    async def _post_json(
+        self, path: str, payload: dict[str, Any],
+        headers: dict[str, str], timeout: float
+    ) -> dict[str, Any]:
+        self.payloads.append(payload)
+        if len(self.payloads) == 1:
+            return {"output": self.items}
+        return {"output": [{"type": "message", "content": [
+            {"type": "output_text", "text": "Final answer"}
+        ]}]}
+
+
+def test_openai_tool_loop_replays_complete_stateless_response_in_order() -> None:
+    client = ResponsesPayloadClient()
+
+    async def execute(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        assert name == "inspect"
+        return {"count": 12}
+
+    result = asyncio.run(client.run_tool_loop(
+        MESSAGES[:2], [ToolSpec("inspect", "Inspect", {
+            "type": "object", "properties": {}, "required": [],
+            "additionalProperties": False,
+        })], execute, max_tool_calls=2, timeout=1,
+    ))
+    assert result.content == "Final answer"
+    assert len(client.payloads) == 2
+    for payload in client.payloads:
+        assert payload["store"] is False
+        assert payload["include"] == ["reasoning.encrypted_content"]
+    assert client.payloads[1]["input"] == [
+        *MESSAGES[:2], *client.items,
+        {"type": "function_call_output", "call_id": "call-1", "output": '{"count":12}'},
+    ]
+    assert sum(
+        item.get("type") == "function_call" for item in client.payloads[1]["input"]
+    ) == 1
+
+
+def test_openai_limit_finalization_has_no_dangling_native_calls() -> None:
+    client = ResponsesPayloadClient()
+
+    async def execute(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        return {"collected_canary": 17}
+
+    result = asyncio.run(client.run_tool_loop(
+        MESSAGES[:2], [ToolSpec("inspect", "Inspect", {"type": "object"})],
+        execute, max_tool_calls=1, timeout=1,
+    ))
+    assert result.content == "Final answer"
+    final = client.payloads[1]
+    assert "tools" not in final
+    assert not any(
+        item.get("type") in {"function_call", "function_call_output"}
+        for item in final["input"]
+    )
+    assert "collected_canary" in final["input"][-1]["content"]
+    assert "opaque-reasoning-canary" not in str(final)

@@ -37,6 +37,11 @@ class OpenAIClient(ProviderClient):
                     }
                 )
                 continue
+            if role == "assistant" and "openai_output" in message:
+                # Replay complete native items, preserving reasoning (including
+                # encrypted content), call IDs and their original output order.
+                output.extend(message["openai_output"])
+                continue
             if role == "assistant" and message.get("tool_calls"):
                 if message.get("content"):
                     output.append(
@@ -69,6 +74,7 @@ class OpenAIClient(ProviderClient):
             "model": self.model,
             "input": self._input(messages),
             "store": False,
+            "include": ["reasoning.encrypted_content"],
         }
         if tools:
             payload["tools"] = [
@@ -117,6 +123,7 @@ class OpenAIClient(ProviderClient):
                 "role": "assistant",
                 "content": "".join(content_parts),
                 "tool_calls": raw_calls,
+                "openai_output": data.get("output") or [],
             },
         )
 
