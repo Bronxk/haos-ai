@@ -18,6 +18,7 @@ sys.path.insert(0, "/workspace")
 
 from custom_components.haos_ai.const import DOMAIN  # noqa: E402
 from custom_components.haos_ai.runtime import HaosAIRuntime  # noqa: E402
+from custom_components.haos_ai.storage import suggestion_revision  # noqa: E402
 from custom_components.haos_ai.websocket_api import ws_change_apply  # noqa: E402
 
 
@@ -113,6 +114,9 @@ async def invoke(
             "type": "haos_ai/change/apply",
             "suggestion_id": "synthetic-removal",
             "confirm": confirm,
+            "expected_revision": suggestion_revision(
+                hass.data[DOMAIN].store.suggestion
+            ),
         },
     )
     if inspect.isawaitable(result):
@@ -170,6 +174,19 @@ async def main() -> None:
     await invoke(hass, connection, confirm=True)
     assert connection.error is not None
     assert registry.async_get(entity_id) is not None
+
+    # A capability revoked while approval waits for another operation stays revoked.
+    runtime = hass.data[DOMAIN]
+    await runtime.operation_lock.acquire()
+    connection.reset()
+    queued = asyncio.create_task(invoke(hass, connection, confirm=True))
+    await asyncio.sleep(0)
+    store.data["preferences"]["change_permissions"]["remove_entities"] = False
+    runtime.operation_lock.release()
+    await queued
+    assert connection.error[1] == "permission_disabled", connection.error
+    assert registry.async_get(entity_id) is not None
+    store.data["preferences"]["change_permissions"]["remove_entities"] = True
 
     hass.states.async_remove(entity_id)
     connection.reset()

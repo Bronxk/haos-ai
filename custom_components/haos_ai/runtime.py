@@ -20,4 +20,5 @@ class HaosAIRuntime:
     advisor: Advisor
     store: AdvisorStore
     unsubscribe_schedule: Callable[[], None] | None = None
+    closing: bool = False
     operation_lock: asyncio.Lock = field(default_factory=asyncio.Lock)

@@ -71,14 +71,25 @@ def _input(user_id):
     )
 
 
-def _run(user_id, advisor):
+def _run(user_id, advisor, *, closing=False, replace_during_auth=False):
     """Drive one message and return the text the agent speaks back."""
     log = FakeChatLog()
     entity.hass = SimpleNamespace(
-        data={DOMAIN: SimpleNamespace(advisor=advisor, operation_lock=asyncio.Lock())},
+        data={DOMAIN: SimpleNamespace(
+            advisor=advisor, operation_lock=asyncio.Lock(), closing=closing
+        )},
         auth=FakeAuth(),
         bus=SimpleNamespace(async_fire=lambda *args, **kwargs: None),
     )
+    if replace_during_auth:
+        class ReplacingAuth(FakeAuth):
+            async def async_get_user(self, user_id):
+                entity.hass.data[DOMAIN] = SimpleNamespace(
+                    advisor=advisor, operation_lock=asyncio.Lock(), closing=False
+                )
+                return await super().async_get_user(user_id)
+
+        entity.hass.auth = ReplacingAuth()
     original = conversation.async_get_result_from_chat_log
     conversation.async_get_result_from_chat_log = lambda user_input, chat_log: chat_log
     try:
@@ -102,6 +113,9 @@ assert advisor.calls == [], "an unauthorized request reached the advisor"
 # An admin is served, on a namespaced thread that cannot address a panel thread.
 assert _run("admin-user", advisor) == "advisor answered"
 assert len(advisor.calls) == 1
+assert "busy" in _run("admin-user", advisor, closing=True)
+assert "busy" in _run("admin-user", advisor, replace_during_auth=True)
+assert len(advisor.calls) == 1, "a closing or replaced runtime reached the advisor"
 admin_thread = advisor.calls[0]
 assert admin_thread.startswith("assist:admin-user:"), admin_thread
 assert admin_thread != "shared-conversation"

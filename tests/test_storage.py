@@ -201,3 +201,51 @@ def test_migrate_applied_markers_backfills_legacy_suggestions() -> None:
     assert not by_id["fresh"].get("applied_change_id")
     assert by_id["marked"]["applied_at"] == "T"
     assert by_id["marked"]["applied_change_id"] == "c"
+
+
+def test_recurrence_never_retargets_automation_or_removal() -> None:
+    """Same explanation for two targets must remain two approval identities."""
+    from custom_components.haos_ai.models import AutomationProposal, ProposedOperation
+
+    for kind in (RecommendationKind.AUTOMATION, RecommendationKind.HYGIENE):
+        store = AdvisorStore.__new__(AdvisorStore)
+        store.data = default_data()
+        first = _recommendation("Fix this", kind=kind)
+        second = _recommendation("Fix this", kind=kind)
+        if kind == RecommendationKind.AUTOMATION:
+            first.automation = AutomationProposal(config={}, target_id="A")
+            second.automation = AutomationProposal(config={}, target_id="B")
+        else:
+            first.operation = ProposedOperation("remove_entity", "sensor.a", "A")
+            second.operation = ProposedOperation("remove_entity", "sensor.b", "B")
+        assert store.add_suggestions([first, second]) == [first, second]
+        assert len(store.list_suggestions()) == 2
+        assert store.get_suggestion(first.id) == first.to_dict()
+
+
+def test_recurrence_refreshes_action_and_invalidates_reviewed_revision() -> None:
+    from custom_components.haos_ai.models import ProposedOperation
+    from custom_components.haos_ai.storage import suggestion_revision
+
+    store = AdvisorStore.__new__(AdvisorStore)
+    store.data = default_data()
+    first = _recommendation("Fix this", kind=RecommendationKind.HYGIENE)
+    first.operation = ProposedOperation(
+        "remove_device", "device-a", "Old label", "entry"
+    )
+    store.add_suggestions([first])
+    before = suggestion_revision(store.get_suggestion(first.id))
+    repeated = _recommendation("Fix this", kind=RecommendationKind.HYGIENE)
+    repeated.operation = ProposedOperation(
+        "remove_device", "device-a", "New label", "entry"
+    )
+    repeated.evidence = [Evidence("device", "device-a", "New evidence")]
+    assert store.add_suggestions([repeated]) == []
+    refreshed = store.get_suggestion(first.id)
+    assert refreshed["operation"]["label"] == "New label"
+    assert refreshed["evidence"][0]["observation"] == "New evidence"
+    assert suggestion_revision(refreshed) != before
+    # Moving a device to another integration changes removal semantics.
+    moved = _recommendation("Fix this", kind=RecommendationKind.HYGIENE)
+    moved.operation = ProposedOperation("remove_device", "device-a", "Moved", "entry-2")
+    assert store.add_suggestions([moved]) == [moved]

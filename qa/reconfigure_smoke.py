@@ -175,6 +175,19 @@ async def main() -> None:
     result = await options.async_step_init({"scan_depth": "standard"})
     assert result["type"] == "abort" and result["reason"] == "advisor_busy", result
 
+    # Validation awaits; a new operation starting in that gap must prevent reload.
+    flow, captured = make_flow(stored())
+    lock = asyncio.Lock()
+    flow.hass.data[DOMAIN] = SimpleNamespace(operation_lock=lock)
+
+    async def become_busy(_hass: Any, _data: Any) -> None:
+        await lock.acquire()
+
+    with patch.object(config_flow, "_async_validate", become_busy):
+        result = await flow.async_step_reconfigure(stored())
+    assert result["reason"] == "advisor_busy", result
+    assert not captured
+    lock.release()
     print("Reconfigure smoke test OK")
 
 

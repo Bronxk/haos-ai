@@ -106,7 +106,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         if runtime is None:
             _LOGGER.warning("HAOS AI scan requested but the integration is not loaded")
             raise HomeAssistantError("HAOS AI is not loaded")
-        if runtime.operation_lock.locked():
+        if runtime.closing or runtime.operation_lock.locked():
             _LOGGER.warning("HAOS AI scan requested while another operation is running")
             raise HomeAssistantError("A scan is already running")
         user_id = call.context.user_id
@@ -124,6 +124,8 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             hass.bus.async_fire(f"{DOMAIN}_progress", event)
 
         async with runtime.operation_lock:
+            if runtime.closing or hass.data.get(DOMAIN) is not runtime:
+                raise HomeAssistantError("HAOS AI is unloading")
             await runtime.advisor.async_scan(progress, confirm_context=True)
 
     hass.services.async_register(DOMAIN, "scan", handle_scan)
@@ -161,7 +163,7 @@ def _configure_schedule(hass: HomeAssistant, runtime: HaosAIRuntime) -> None:
             )
         ):
             return
-        if runtime.operation_lock.locked():
+        if runtime.closing or runtime.operation_lock.locked():
             _LOGGER.warning("Scheduled scan skipped: another operation is running")
             return
 
@@ -170,6 +172,8 @@ def _configure_schedule(hass: HomeAssistant, runtime: HaosAIRuntime) -> None:
 
         try:
             async with runtime.operation_lock:
+                if runtime.closing or hass.data.get(DOMAIN) is not runtime:
+                    return
                 result = await runtime.advisor.async_scan(
                     progress, confirm_context=True
                 )
@@ -268,20 +272,29 @@ async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload provider runtime."""
-    if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        return False
     runtime: HaosAIRuntime | None = hass.data.get(DOMAIN)
-    if runtime is not None and runtime.operation_lock.locked():
-        # Let a running scan/chat/approve finish before its store is dropped.
+    if runtime is None:
+        return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    runtime.closing = True
+    acquired = False
+    try:
         try:
             async with asyncio.timeout(UNLOAD_WAIT_SECONDS):
-                async with runtime.operation_lock:
-                    pass
+                await runtime.operation_lock.acquire()
+                acquired = True
         except TimeoutError:
             _LOGGER.warning(
-                "HAOS AI unloading while an advisor operation is still running"
+                "HAOS AI unload refused while an advisor operation is running"
             )
-    hass.data.pop(DOMAIN, None)
-    if runtime and runtime.unsubscribe_schedule:
-        runtime.unsubscribe_schedule()
-    return True
+            return False
+        if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+            return False
+        hass.data.pop(DOMAIN, None)
+        if runtime.unsubscribe_schedule:
+            runtime.unsubscribe_schedule()
+        return True
+    finally:
+        if acquired:
+            runtime.operation_lock.release()
+        if hass.data.get(DOMAIN) is runtime:
+            runtime.closing = False

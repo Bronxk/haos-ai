@@ -287,6 +287,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     _LOGGER.exception("Unexpected provider reconfiguration error")
                     errors["base"] = "unknown"
                 else:
+                    if _advisor_busy(self.hass):
+                        return self.async_abort(reason="advisor_busy")
                     normalized = {
                         **candidate,
                         CONF_API_KEY: str(candidate[CONF_API_KEY]).strip(),

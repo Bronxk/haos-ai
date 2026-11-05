@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -37,11 +39,32 @@ from .models import AppliedChange, ChatMessage, PrivacyReceipt, Recommendation
 _LOGGER = logging.getLogger(__name__)
 
 
-def _suggestion_fingerprint(item: dict[str, Any]) -> tuple[str, str]:
-    """Return a stable identity for semantically repeated suggestions."""
+def content_hash(value: Any) -> str:
+    """Hash JSON-compatible content without relying on object identity."""
+    canonical = json.dumps(value, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def suggestion_revision(item: dict[str, Any]) -> str:
+    """Bind an approval to its complete reviewed evidence and action."""
+    return content_hash(
+        {key: value for key, value in item.items() if key != "approval_revision"}
+    )
+
+
+def _suggestion_fingerprint(item: dict[str, Any]) -> tuple[str, str, str]:
+    """Keep recurring explanations and their mutation target together."""
     kind = str(item.get("kind", "")).casefold()
     title = " ".join(str(item.get("title", "")).casefold().split())
-    return kind, title
+    operation = item.get("operation") or {}
+    automation = item.get("automation") or {}
+    identity = {
+        "operation": operation.get("type"),
+        "target": operation.get("target_id"),
+        "config_entry_id": operation.get("config_entry_id"),
+        "automation_target": automation.get("target_id"),
+    }
+    return kind, title, content_hash(identity)
 
 
 def default_data() -> dict[str, Any]:
@@ -365,6 +388,7 @@ class AdvisorStore:
                         "scan_id": serialized["scan_id"],
                         "privacy_receipt_id": serialized["privacy_receipt_id"],
                         "automation": serialized["automation"],
+                        "operation": serialized["operation"],
                         "occurrences": max(
                             1, int(previous.get("occurrences", 1))
                         )

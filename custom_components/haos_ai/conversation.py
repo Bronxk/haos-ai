@@ -122,7 +122,11 @@ class HaosAIConversationEntity(
                 "Rejected a HAOS AI Assist request from a non-administrator"
             )
             return self._result(user_input, chat_log, NOT_AUTHORIZED)
-        if runtime.operation_lock.locked():
+        if (
+            runtime.closing
+            or self.hass.data.get(DOMAIN) is not runtime
+            or runtime.operation_lock.locked()
+        ):
             return self._result(
                 user_input,
                 chat_log,
@@ -136,6 +140,12 @@ class HaosAIConversationEntity(
 
         try:
             async with runtime.operation_lock:
+                if runtime.closing or self.hass.data.get(DOMAIN) is not runtime:
+                    return self._result(
+                        user_input,
+                        chat_log,
+                        "HAOS AI is reloading. Try again in a moment.",
+                    )
                 result = await runtime.advisor.async_chat(
                     thread_id,
                     user_input.text,

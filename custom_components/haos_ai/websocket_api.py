@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 import uuid
 from typing import Any
@@ -55,14 +53,19 @@ from .models import AppliedChange, RecommendationStatus, utcnow_iso
 from .providers import create_provider
 from .providers.base import ProviderAuthError, ProviderError, normalize_base_url
 from .runtime import HaosAIRuntime
-from .storage import is_assist_thread, normalize_preferences
+from .storage import (
+    content_hash,
+    is_assist_thread,
+    normalize_preferences,
+    suggestion_revision,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def _runtime(hass: HomeAssistant) -> HaosAIRuntime:
     runtime = hass.data.get(DOMAIN)
-    if not isinstance(runtime, HaosAIRuntime):
+    if not isinstance(runtime, HaosAIRuntime) or runtime.closing:
         raise HomeAssistantError("HAOS AI is not loaded")
     return runtime
 
@@ -86,8 +89,7 @@ def _fail(connection: Any, msg_id: int, err: Exception) -> None:
 
 def _config_hash(config: dict[str, Any]) -> str:
     """Return a stable content hash for one approved automation body."""
-    canonical = json.dumps(config, sort_keys=True, ensure_ascii=False, default=str)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return content_hash(config)
 
 
 def _validated_options(incoming: dict[str, Any]) -> dict[str, Any]:
@@ -143,7 +145,10 @@ async def ws_overview(
     """Return panel bootstrap state without secrets."""
     runtime = _runtime(hass)
     entry = runtime.entry
-    suggestions = runtime.store.list_suggestions()
+    suggestions = [
+        {**item, "approval_revision": suggestion_revision(item)}
+        for item in runtime.store.list_suggestions()
+    ]
     connection.send_result(
         msg["id"],
         {
@@ -228,6 +233,8 @@ async def ws_scan(
 
     try:
         async with runtime.operation_lock:
+            if _runtime(hass) is not runtime:
+                raise HomeAssistantError("HAOS AI runtime changed")
             result = await runtime.advisor.async_scan(
                 progress, confirm_context=msg["confirm_context"]
             )
@@ -299,6 +306,7 @@ async def _async_apply_automation(
     suggestion: dict[str, Any],
     operation_type: str,
     config: dict[str, Any],
+    expected_config_hash: str | None = None,
 ) -> dict[str, Any]:
     """Re-validate and write one approved automation on the server.
 
@@ -334,7 +342,13 @@ async def _async_apply_automation(
             )
         automation_id = uuid.uuid4().hex
 
-    replaced, reload_failed = await async_save_automation(hass, automation_id, config)
+    replaced, reload_failed = await async_save_automation(
+        hass,
+        automation_id,
+        config,
+        expected_config_hash=expected_config_hash,
+        require_existing=operation_type == "update_automation",
+    )
     applied = runtime.store.record_applied_change(
         AppliedChange(
             kind=operation_type,
@@ -363,6 +377,8 @@ async def _async_apply_automation(
         vol.Required("type"): "haos_ai/change/apply",
         vol.Required("suggestion_id"): str,
         vol.Required("confirm"): bool,
+        vol.Required("expected_revision"): str,
+        vol.Optional("expected_config_hash"): str,
         vol.Optional("operation"): vol.In(sorted(PERMISSION_KEYS)),
         vol.Optional("config"): dict,
     }
@@ -379,70 +395,65 @@ async def ws_change_apply(
             msg["id"], "approval_required", "Explicit approval is required"
         )
         return
-    suggestion = runtime.store.get_suggestion(msg["suggestion_id"])
-    if suggestion is None:
-        connection.send_error(msg["id"], "not_found", "Suggestion not found")
-        return
+    async with runtime.operation_lock:
+        if runtime.closing or hass.data.get(DOMAIN) is not runtime:
+            connection.send_error(msg["id"], "advisor_busy", "HAOS AI runtime changed")
+            return
+        suggestion = runtime.store.get_suggestion(msg["suggestion_id"])
+        if suggestion is None:
+            connection.send_error(msg["id"], "not_found", "Suggestion not found")
+            return
+        if _is_already_applied(runtime, suggestion):
+            connection.send_error(
+                msg["id"], "already_applied", "This suggestion was already applied"
+            )
+            return
+        if not msg.get("expected_revision") or msg[
+            "expected_revision"
+        ] != suggestion_revision(suggestion):
+            connection.send_error(
+                msg["id"],
+                "stale_suggestion",
+                "This suggestion changed; review it again",
+            )
+            return
+        operation = suggestion.get("operation")
+        requested = str(msg.get("operation", ""))
 
-    operation = suggestion.get("operation")
-    requested = str(msg.get("operation", ""))
+        if isinstance(operation, dict):
+            operation_type = str(operation.get("type", ""))
+            target_id = str(operation.get("target_id", ""))
+        elif isinstance(suggestion.get("automation"), dict):
+            # An automation draft carries no operation of its own, and whether it
+            # replaces an existing automation follows from its stored target. The
+            # caller may confirm that, but cannot choose it.
+            operation_type = (
+                "update_automation"
+                if str(suggestion["automation"].get("target_id") or "")
+                else "create_automation"
+            )
+            target_id = ""
+        else:
+            connection.send_error(
+                msg["id"], "not_found", "Approved operation not found"
+            )
+            return
 
-    if isinstance(operation, dict):
-        operation_type = str(operation.get("type", ""))
-        target_id = str(operation.get("target_id", ""))
-    elif isinstance(suggestion.get("automation"), dict):
-        # An automation draft carries no operation of its own, and whether it
-        # replaces an existing automation follows from its stored target. The
-        # caller may confirm that, but cannot choose it.
-        derived = (
-            "update_automation"
-            if str(suggestion["automation"].get("target_id") or "")
-            else "create_automation"
-        )
-        if requested and requested != derived:
+        if requested and requested != operation_type:
             connection.send_error(
                 msg["id"],
                 "operation_mismatch",
                 "The approved operation does not match this suggestion",
             )
             return
-        operation_type = derived
-        target_id = ""
-    else:
-        connection.send_error(
-            msg["id"], "not_found", "Approved operation not found"
-        )
-        return
-
-    permission_key = PERMISSION_KEYS.get(operation_type)
-    permissions = runtime.store.data["preferences"].get(
-        "change_permissions", {}
-    )
-    if not permission_key or not permissions.get(permission_key, False):
-        connection.send_error(
-            msg["id"], "permission_disabled", "This approval capability is disabled"
-        )
-        return
-
-    # One approval at a time: two concurrent approvals used to read the same
-    # automation file, and the last writer silently discarded the other change.
-    async with runtime.operation_lock:
-        # The suggestion may have been cleared while this request waited.
-        suggestion = runtime.store.get_suggestion(msg["suggestion_id"])
-        if suggestion is None:
-            connection.send_error(msg["id"], "not_found", "Suggestion not found")
-            return
-        # "saved" only means bookmarked, so the applied state is read from the
-        # suggestion's own marker and the ledger, checked under the lock so a
-        # concurrent replay cannot slip past.
-        if _is_already_applied(runtime, suggestion):
+        permission_key = PERMISSION_KEYS.get(operation_type)
+        permissions = runtime.store.data["preferences"].get("change_permissions", {})
+        if not permission_key or not permissions.get(permission_key, False):
             connection.send_error(
-                msg["id"],
-                "already_applied",
-                "This suggestion was already applied. Dismiss it, or wait for "
-                "a scan to propose a different change.",
+                msg["id"], "permission_disabled", "This approval capability is disabled"
             )
             return
+
         await _async_apply_change(
             hass, connection, msg, runtime, suggestion, operation_type, target_id
         )
@@ -495,7 +506,12 @@ async def _async_apply_change(
             # supplied by the browser is not trusted as proof of what a reviewer
             # saw: the client is not an authority on its own display.
             result = await _async_apply_automation(
-                hass, runtime, suggestion, operation_type, config
+                hass,
+                runtime,
+                suggestion,
+                operation_type,
+                config,
+                msg.get("expected_config_hash"),
             )
             _mark_applied(
                 runtime, msg["suggestion_id"], suggestion, result["applied_change"]
@@ -614,6 +630,8 @@ async def ws_chat(
         return
     try:
         async with runtime.operation_lock:
+            if _runtime(hass) is not runtime:
+                raise HomeAssistantError("HAOS AI runtime changed")
             result = await runtime.advisor.async_chat(
                 msg["thread_id"], msg["text"], progress
             )
@@ -668,9 +686,13 @@ async def ws_chat_thread_delete(
         connection.send_error(msg["id"], "not_found", "Chat thread not found")
         return
     runtime = _runtime(hass)
-    deleted = runtime.store.delete_thread(msg["thread_id"])
-    if deleted:
-        await runtime.store.async_save()
+    async with runtime.operation_lock:
+        if runtime.closing or hass.data.get(DOMAIN) is not runtime:
+            connection.send_error(msg["id"], "advisor_busy", "HAOS AI runtime changed")
+            return
+        deleted = runtime.store.delete_thread(msg["thread_id"])
+        if deleted:
+            await runtime.store.async_save()
     connection.send_result(msg["id"], {"deleted": deleted})
 
 
@@ -785,12 +807,17 @@ async def ws_automation_current(
         return
     if config is None:
         connection.send_result(
-            msg["id"], {"found": False, "config": None, "yaml": ""}
+            msg["id"], {"found": False, "config": None, "yaml": "", "config_hash": ""}
         )
         return
     connection.send_result(
         msg["id"],
-        {"found": True, "config": config, "yaml": export_yaml(config)},
+        {
+            "found": True,
+            "config": config,
+            "yaml": export_yaml(config),
+            "config_hash": content_hash(config),
+        },
     )
 
 

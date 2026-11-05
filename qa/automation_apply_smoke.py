@@ -11,6 +11,7 @@ import asyncio
 import inspect
 import os
 import sys
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
@@ -21,10 +22,15 @@ from homeassistant.core import HomeAssistant
 sys.path.insert(0, "/workspace")
 
 from custom_components.haos_ai.automation_store import (  # noqa: E402
+    async_get_automation,
     async_read_automations,
 )
 from custom_components.haos_ai.const import DOMAIN  # noqa: E402
 from custom_components.haos_ai.runtime import HaosAIRuntime  # noqa: E402
+from custom_components.haos_ai.storage import (  # noqa: E402
+    content_hash,
+    suggestion_revision,
+)
 from custom_components.haos_ai.websocket_api import ws_change_apply  # noqa: E402
 
 VALID = {
@@ -99,9 +105,7 @@ class FakeConnection:
         self.completed.set()
 
 
-def suggestion(
-    identifier: str, *, target_id: str | None = None
-) -> dict[str, Any]:
+def suggestion(identifier: str, *, target_id: str | None = None) -> dict[str, Any]:
     return {
         "id": identifier,
         "status": "new",
@@ -125,6 +129,8 @@ async def invoke(
     *,
     operation: str | None = None,
     config: dict[str, Any] | None = None,
+    expected_revision: str | None = None,
+    expected_config_hash: str | None = None,
 ) -> None:
     connection.reset()
     msg: dict[str, Any] = {
@@ -133,6 +139,17 @@ async def invoke(
         "suggestion_id": suggestion_id,
         "confirm": True,
     }
+    item = hass.data[DOMAIN].store.get_suggestion(suggestion_id)
+    msg["expected_revision"] = (
+        suggestion_revision(item) if expected_revision is None else expected_revision
+    )
+    if item.get("automation", {}).get("target_id"):
+        current = await async_get_automation(hass, item["automation"]["target_id"])
+        msg["expected_config_hash"] = (
+            content_hash(current)
+            if expected_config_hash is None
+            else expected_config_hash
+        )
     if operation is not None:
         msg["operation"] = operation
     if config is not None:
@@ -151,8 +168,7 @@ def install(hass: HomeAssistant, item: dict[str, Any]) -> FakeStore:
     return store
 
 
-async def main() -> None:
-    config_dir = "/tmp/haos-ai-apply"
+async def run(config_dir: str) -> None:
     os.makedirs(config_dir, exist_ok=True)
     # The apply path reloads the automation platform, which re-reads the real
     # configuration, so the harness needs the same file layout Home Assistant
@@ -168,7 +184,10 @@ async def main() -> None:
 
     hass = HomeAssistant(config_dir)
     loader.async_setup(hass)
-    assert await bootstrap.async_from_config_dict({"automation": []}, hass) is hass
+    assert (
+        await bootstrap.async_from_config_dict({"automation": [], "config": {}}, hass)
+        is hass
+    )
 
     # 1. A create is written under a server-assigned id, and a model-supplied
     #    id in the body cannot retarget it.
@@ -325,6 +344,91 @@ async def main() -> None:
     assert connection.error[1] == "already_applied", connection.error
     assert len(await async_read_automations(hass)) == before + 1
 
+    # A reviewed suggestion cannot be approved after recurrence changes its body.
+    changed = suggestion("stale", target_id=automation_id)
+    install(hass, changed)
+    reviewed = suggestion_revision(changed)
+    changed["automation"]["target_id"] = "other-target"
+    await invoke(hass, connection, "stale", config=VALID, expected_revision=reviewed)
+    assert connection.error[1] == "stale_suggestion", connection.error
+    await invoke(hass, connection, "stale", config=VALID, expected_revision="")
+    assert connection.error[1] == "stale_suggestion", connection.error
+
+    # Recurrence while waiting for a scan's lock invalidates the queued approval.
+    changed = suggestion("queued-stale", target_id=automation_id)
+    install(hass, changed)
+    runtime = hass.data[DOMAIN]
+    await runtime.operation_lock.acquire()
+    queued = asyncio.create_task(invoke(hass, connection, "queued-stale", config=VALID))
+    await asyncio.sleep(0)
+    changed["rationale"] = "New scan evidence arrived"
+    runtime.operation_lock.release()
+    await queued
+    assert connection.error[1] == "stale_suggestion", connection.error
+
+    # Exercise HA's actual native POST with its actual registered view lock.
+    from aiohttp.test_utils import make_mocked_request
+    from homeassistant.components.http import KEY_HASS
+
+    from custom_components.haos_ai import automation_store
+
+    editor = await automation_store._async_native_editor(hass)
+
+    async def native_save(identifier: str, alias: str) -> None:
+        request = make_mocked_request(
+            "POST", "/api/config/automation/config/" + identifier, app={KEY_HASS: hass}
+        )
+
+        async def body() -> dict[str, Any]:
+            return {**VALID, "alias": alias}
+
+        request.json = body
+        response = await editor.post.__wrapped__(editor, request, identifier)
+        assert response.status == 200, response.text
+
+    ai_read = asyncio.Event()
+    release_ai = asyncio.Event()
+    original_executor = hass.async_add_executor_job
+
+    async def gated_executor(self: Any, target: Any, *args: Any) -> Any:
+        value = await original_executor(target, *args)
+        if target is automation_store._read:
+            ai_read.set()
+            await release_ai.wait()
+        return value
+
+    with patch.object(type(hass), "async_add_executor_job", gated_executor):
+        ai = asyncio.create_task(
+            automation_store.async_save_automation(hass, "ai-concurrent", VALID)
+        )
+        await asyncio.wait_for(ai_read.wait(), 5)
+        native = asyncio.create_task(native_save("native-concurrent", "Native editor"))
+        await asyncio.sleep(0)
+        assert not native.done(), "Native POST ignored the shared mutation lock"
+        release_ai.set()
+        await asyncio.gather(ai, native)
+    rows = await async_read_automations(hass)
+    assert {"ai-concurrent", "native-concurrent"} <= {row["id"] for row in rows}
+
+    # Native edits made after the reviewed diff must block an AI update.
+    reviewed_config = await async_get_automation(hass, automation_id)
+    stale_hash = content_hash(reviewed_config)
+    await native_save(automation_id, "Native changed after review")
+    item = suggestion("native-stale", target_id=automation_id)
+    install(hass, item)
+    await invoke(
+        hass, connection, "native-stale", config=VALID, expected_config_hash=stale_hash
+    )
+    assert connection.error[1] == "operation_failed", connection.error
+    assert "changed" in connection.error[2], connection.error
+    assert (await async_get_automation(hass, automation_id))[
+        "alias"
+    ] == "Native changed after review"
+    await invoke(
+        hass, connection, "native-stale", config=VALID, expected_config_hash=""
+    )
+    assert connection.error[1] == "operation_failed", connection.error
+
     # 7. Update targets are limited to what automations.yaml can rewrite: an
     #    automation loaded from a package or other file is not a valid target.
     from custom_components.haos_ai.context import ContextEngine
@@ -343,6 +447,11 @@ async def main() -> None:
 
     await hass.async_stop(force=True)
     print("Automation apply smoke test OK")
+
+
+async def main() -> None:
+    with TemporaryDirectory(prefix="haos-ai-apply-") as config_dir:
+        await run(config_dir)
 
 
 asyncio.run(main())

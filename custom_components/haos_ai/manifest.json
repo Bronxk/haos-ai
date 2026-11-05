@@ -4,7 +4,7 @@
   "after_dependencies": ["automation", "blueprint", "hassio", "recorder"],
   "codeowners": ["@Bronxk"],
   "config_flow": true,
-  "dependencies": ["conversation", "frontend", "http", "panel_custom", "persistent_notification", "websocket_api"],
+  "dependencies": ["config", "conversation", "frontend", "http", "panel_custom", "persistent_notification", "websocket_api"],
   "documentation": "https://github.com/Bronxk/haos-ai",
   "integration_type": "service",
   "iot_class": "cloud_polling",
