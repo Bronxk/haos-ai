@@ -74,25 +74,37 @@ SENSITIVE_QUERY_PARTS = frozenset(
 
 
 def exclude_ignored_entities(value: Any, ignored: set[str]) -> Any:
-    """Remove explicitly ignored entity IDs from nested outbound context."""
-    if isinstance(value, dict):
-        if str(value.get("entity_id", "")) in ignored:
-            return None
-        return {
-            key: cleaned
-            for key, item in value.items()
-            if key not in ignored
-            and (cleaned := exclude_ignored_entities(item, ignored)) is not None
-        }
-    if isinstance(value, list):
-        return [
-            cleaned
-            for item in value
-            if (cleaned := exclude_ignored_entities(item, ignored)) is not None
-        ]
-    if isinstance(value, str) and value in ignored:
-        return None
-    return value
+    """Withhold ignored entity, area, label and device IDs from outbound context."""
+    ignored = {identifier for identifier in ignored if identifier}
+    if not ignored:
+        return value
+    # A boundary may be a quote, comma, Jinja punctuation, or attribute dot;
+    # underscores/hyphens belong to IDs. Do not match private_extra for private.
+    pattern = re.compile(
+        r"(?<![\w-])(?:" + "|".join(re.escape(item) for item in sorted(ignored))
+        + r")(?![\w-])"
+    )
+
+    def walk(item: Any) -> Any:
+        if isinstance(item, dict):
+            if str(item.get("entity_id", "")) in ignored:
+                return None
+            return {
+                key: cleaned
+                for key, child in item.items()
+                if not pattern.search(str(key))
+                and (cleaned := walk(child)) is not None
+            }
+        if isinstance(item, list):
+            return [cleaned for child in item if (cleaned := walk(child)) is not None]
+        if isinstance(item, str):
+            if item in ignored:
+                return None
+            # Preserve public values and shape while withholding embedded IDs.
+            return pattern.sub("[IGNORED]", item)
+        return item
+
+    return walk(value)
 
 
 def normalize_key(key: Any) -> str:

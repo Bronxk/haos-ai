@@ -172,3 +172,29 @@ def test_title_case_and_extra_address_keys_are_redacted() -> None:
             assert cleaned[key] == "[REDACTED]", key
     kept, _ = sanitize(payload, include_exact_location=True)
     assert kept == payload
+
+
+def test_embedded_ignored_ids_keep_public_prefixes() -> None:
+    payload = {
+        "template": "{{ is_state('light.private', 'on') }}",
+        "attribute_template": "{{ states.light.private.state }}",
+        "targets": "light.private, light.public",
+        "description": "Use area private-area and label private-label.",
+        "public_template": "{{ is_state('light.private_extra', 'on') }}",
+        "public_id": "light.private_extra",
+        "public_description": "private-area_extra private-label_extra",
+        "key containing light.private": "hidden field",
+        "rows": [{"entity_id": "light.private", "state": "on"}],
+    }
+    cleaned = exclude_ignored_entities(
+        payload, {"light.private", "private-area", "private-label"}
+    )
+    assert cleaned["template"] == "{{ is_state('[IGNORED]', 'on') }}"
+    assert cleaned["attribute_template"] == "{{ states.[IGNORED].state }}"
+    assert cleaned["targets"] == "[IGNORED], light.public"
+    assert cleaned["description"] == "Use area [IGNORED] and label [IGNORED]."
+    assert cleaned["public_template"] == payload["public_template"]
+    assert cleaned["public_id"] == "light.private_extra"
+    assert cleaned["public_description"] == payload["public_description"]
+    assert "key containing light.private" not in cleaned
+    assert cleaned["rows"] == []

@@ -1,6 +1,7 @@
 """Exercise the live context engine in a Home Assistant runtime image."""
 
 import asyncio
+import json
 import sys
 from unittest.mock import patch
 
@@ -84,6 +85,18 @@ async def main() -> None:
     before_entity_count = len(er.async_get(hass).entities)
     before_device_count = len(dr.async_get(hass).devices)
     engine = ContextEngine(hass)
+    # Check the actual full tool list sent to strict-schema providers.
+    for tool in engine.tool_specs():
+        schema = tool.parameters
+        assert schema["additionalProperties"] is False, tool.name
+        assert set(schema["required"]) == set(schema["properties"]), tool.name
+    automation_tool = next(
+        tool for tool in engine.tool_specs() if tool.name == "get_automations"
+    )
+    assert automation_tool.parameters["properties"]["query"]["type"] == [
+        "string", "null"
+    ]
+    assert automation_tool.parameters["required"] == ["query"]
     preview = await engine.async_baseline_preview()
     assert preview["payload"]["home_summary"]["counts"]["states"] == 112
     candidates = preview["payload"]["local_candidates"]
@@ -178,6 +191,38 @@ async def main() -> None:
     )
     assert summary["state_counts"] == {"[REDACTED]": 1, "unavailable": 1}
     assert "Example" not in str(summary)
+    # Execute the real tool boundary against raw automation context containing
+    # embedded references, not just its standalone privacy helper.
+    from homeassistant.components.automation import DATA_COMPONENT
+
+    private_id = "light.excluded_canary"
+    raw_automation = {
+        "entity_id": "automation.canary", "name": "Public automation",
+        "is_on": True,
+        "raw_config": {
+            "alias": "Public automation",
+            "condition": "{{ is_state('light.excluded_canary', 'on') }}",
+            "action": {"target": {"entity_id": "light.excluded_canary, light.public"}},
+            "public_template": "{{ states.light.excluded_canary_extra.state }}",
+        },
+        "referenced_entities": {private_id, "light.public"},
+        "referenced_devices": set(), "referenced_areas": set(),
+    }
+    hass.data[DATA_COMPONENT] = SimpleNamespace(
+        entities=[SimpleNamespace(**raw_automation)]
+    )
+    filtered = await engine.async_execute_tool(
+        "get_automations", {"query": None}, {"ignored_entities": [private_id]}
+    )
+    outbound = json.dumps(filtered)
+    assert "light.excluded_canary'" not in outbound
+    assert "light.excluded_canary," not in outbound
+    assert '"light.excluded_canary"' not in outbound
+    assert "light.excluded_canary_extra" in outbound
+    assert "light.public" in outbound
+    assert "[IGNORED]" in outbound
+    assert engine.outbound_trace[-1]["result"] == filtered
+    hass.data.pop(DATA_COMPONENT)
     after_states = {
         state.entity_id: (state.state, dict(state.attributes))
         for state in hass.states.async_all()

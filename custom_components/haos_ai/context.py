@@ -317,13 +317,13 @@ class ContextEngine:
                 (
                     "Get existing automation configurations, optionally "
                     "filtered by a substring of the automation name or entity "
-                    "id. Omit query, or pass an empty string or '*', to list "
+                    "id. Pass null, an empty string or '*' as query to list "
                     "every automation."
                 ),
                 {
                     **object_schema,
                     "properties": {"query": {"type": ["string", "null"]}},
-                    "required": [],
+                    "required": ["query"],
                 },
             ),
             ToolSpec(
@@ -676,7 +676,7 @@ class ContextEngine:
                 if not isinstance(metadata, dict):
                     # Unparsable blueprints surface as exceptions in this map.
                     continue
-                raw_inputs = metadata.get("input") or {}
+                raw_inputs = blueprint.inputs
                 inputs: list[dict[str, Any]] = []
                 if isinstance(raw_inputs, dict):
                     for input_name, spec in list(raw_inputs.items())[:30]:
