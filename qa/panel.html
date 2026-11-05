@@ -168,6 +168,7 @@
         },
         suggestions: [
           {
+            approval_revision: "qa-revision-1",
             id: "one",
             title: "Light the hall when the front door opens",
             summary:
@@ -198,6 +199,7 @@
             },
           },
           {
+            approval_revision: "qa-revision-1",
             id: "two",
             title: "Assign nine entities to areas",
             summary:
@@ -218,6 +220,7 @@
             ],
           },
           {
+            approval_revision: "qa-revision-1",
             id: "three",
             title: "Review unavailable patio sensor",
             summary: "The patio temperature sensor has been unavailable.",
@@ -275,6 +278,8 @@
               redactions: ["latitude", "longitude", "api_key"],
               payload_preview: { baseline: { home_summary: { areas: 7 }, preferences: overview.preferences }, requested_context: [{ tool: "get_history_summary", arguments: { entity_id: "binary_sensor.front_door", days: 14 } }] },
             };
+            if (message.type === "haos_ai/automation/current") return { found: true, yaml: "alias: Existing automation\nmode: single\n", config_hash: "qa-config-hash" };
+            if (message.type === "haos_ai/change/apply") return { reload_failed: false };
             if (message.type === "haos_ai/automation/validate") return {
               validation: { valid: true, errors: {} },
               yaml: "alias: Validated hall light\ntriggers: []\nconditions: []\nactions: []\nmode: single\n",

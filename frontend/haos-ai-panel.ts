@@ -65,6 +65,7 @@ interface ValidationResult {
 
 interface Suggestion {
   id: string;
+  approval_revision: string;
   title: string;
   summary: string;
   rationale: string;
@@ -263,6 +264,9 @@ interface PendingChange {
     | "remove_entity"
     | "remove_device";
   suggestionId: string;
+  expectedRevision: string;
+  draftYaml?: string;
+  configHash?: string;
   targetId: string;
   label: string;
   configEntryId?: string;
@@ -546,7 +550,12 @@ export class HaosAiPanel extends LitElement {
 
   protected willUpdate(changed: Map<PropertyKey, unknown>): void {
     if (changed.has("hass")) this.start();
+    if (changed.has("draftYaml") || changed.has("selectedId")) {
+      this.draftVersion += 1;
+      this.validationRequest += 1;
+    }
     if (changed.has("selectedId")) {
+      this.draftApprovalRevision = this.selected?.approval_revision;
       const yaml = this.selected?.automation?.yaml ?? "";
       this.draftYaml = yaml;
       this.draftValidation = this.selected?.automation?.validation;
@@ -627,6 +636,15 @@ export class HaosAiPanel extends LitElement {
   private overviewRequest = 0;
 
   private draftDirty = false;
+  private draftApprovalRevision?: string;
+  private validationRequest = 0;
+  private validationOperation = 0;
+  private draftVersion = 0;
+  private threadRequest = 0;
+  private threadView = 0;
+  private threadsRequest = 0;
+  private receiptRequest = 0;
+  private diffRequest = 0;
 
   private async loadOverview(): Promise<void> {
     if (!this.hass) return;
@@ -674,6 +692,7 @@ export class HaosAiPanel extends LitElement {
       (entry) => entry.id === this.selectedId,
     );
     if (!item?.automation) return;
+    this.draftApprovalRevision = item.approval_revision;
     this.draftYaml = item.automation.yaml ?? "";
     this.draftValidation = item.automation.validation;
     this.draftError = "";
@@ -832,32 +851,46 @@ export class HaosAiPanel extends LitElement {
   }
 
   private async loadThreads(): Promise<void> {
+    const request = ++this.threadsRequest;
     try {
       const threads = await this.call<ThreadSummary[]>("haos_ai/chat/threads");
-      this.threads = Array.isArray(threads) ? threads : [];
+      if (request === this.threadsRequest) {
+        this.threads = Array.isArray(threads) ? threads : [];
+      }
     } catch (error) {
-      this.error = this.describeError(error);
+      if (request === this.threadsRequest) this.error = this.describeError(error);
     }
   }
 
   private async loadThread(): Promise<void> {
+    const threadId = this.threadId;
+    const request = ++this.threadRequest;
+    const view = this.threadView;
+    const current = () =>
+      request === this.threadRequest &&
+      threadId === this.threadId &&
+      view === this.threadView;
     try {
       const messages = await this.call<ChatMessage[]>("haos_ai/chat/thread", {
-        thread_id: this.threadId,
+        thread_id: threadId,
       });
-      this.chat = Array.isArray(messages) ? messages : [];
+      if (current()) this.chat = Array.isArray(messages) ? messages : [];
     } catch (error) {
-      this.error = this.describeError(error);
+      if (current()) this.error = this.describeError(error);
     }
   }
 
   private async selectThread(threadId: string): Promise<void> {
+    this.threadView += 1;
     this.threadId = threadId;
     this.chat = [];
+    this.chatText = "";
     await this.loadThread();
   }
 
   private newThread(): void {
+    this.threadView += 1;
+    this.threadRequest += 1;
     this.threadId = crypto.randomUUID().replaceAll("-", "").slice(0, 40);
     this.chat = [];
     this.chatText = "";
@@ -888,11 +921,14 @@ export class HaosAiPanel extends LitElement {
     // Keep the dialog open, with its buttons disabled, until the call settles:
     // closing first left the user staring at an unchanged panel.
     this.dialogPending = true;
+    const threadId = this.threadId;
+    this.threadView += 1;
+    this.threadRequest += 1;
     try {
       await this.call("haos_ai/chat/thread/delete", {
-        thread_id: this.threadId,
+        thread_id: threadId,
       });
-      this.newThread();
+      if (this.threadId === threadId) this.newThread();
       await this.loadThreads();
     } catch (error) {
       this.error = this.describeError(error);
@@ -905,6 +941,9 @@ export class HaosAiPanel extends LitElement {
   private async sendChat(): Promise<void> {
     const value = this.chatText.trim();
     if (!value || this.busy) return;
+    const threadId = this.threadId;
+    const view = this.threadView;
+    this.threadRequest += 1;
     this.chatText = "";
     this.chat = [
       ...this.chat,
@@ -920,15 +959,19 @@ export class HaosAiPanel extends LitElement {
     this.error = "";
     this.localRuns += 1;
     try {
-      const response = await this.call<{ message: ChatMessage }>("haos_ai/chat", {
-        thread_id: this.threadId,
+      await this.call<{ message: ChatMessage }>("haos_ai/chat", {
+        thread_id: threadId,
         text: value,
       });
-      this.chat = [...this.chat, response.message];
+      if (threadId === this.threadId && view === this.threadView) {
+        await this.loadThread();
+      }
       await this.loadThreads();
     } catch (error) {
-      this.error = this.describeError(error);
-      await this.loadThread();
+      if (threadId === this.threadId && view === this.threadView) {
+        this.error = this.describeError(error);
+        await this.loadThread();
+      }
     } finally {
       this.localRuns -= 1;
       this.busy = false;
@@ -945,14 +988,20 @@ export class HaosAiPanel extends LitElement {
   }
 
   private async openReceipt(receiptId: string): Promise<void> {
+    const request = ++this.receiptRequest;
     this.selectedReceiptId = receiptId;
     this.receipt = undefined;
     try {
-      this.receipt = await this.call<PrivacyReceipt>("haos_ai/privacy_receipt", {
+      const receipt = await this.call<PrivacyReceipt>("haos_ai/privacy_receipt", {
         receipt_id: receiptId,
       });
+      if (request === this.receiptRequest && this.selectedReceiptId === receiptId) {
+        this.receipt = receipt;
+      }
     } catch (error) {
-      this.error = this.describeError(error);
+      if (request === this.receiptRequest && this.selectedReceiptId === receiptId) {
+        this.error = this.describeError(error);
+      }
     }
   }
 
@@ -1104,6 +1153,8 @@ export class HaosAiPanel extends LitElement {
           ? "update_automation"
           : "create_automation",
         suggestionId: item.id,
+        expectedRevision: this.draftApprovalRevision ?? item.approval_revision,
+        draftYaml: this.draftYaml,
         targetId: item.automation.target_id ?? "new automation",
         label: item.title,
       };
@@ -1112,6 +1163,7 @@ export class HaosAiPanel extends LitElement {
     return {
       kind: item.operation.type,
       suggestionId: item.id,
+      expectedRevision: item.approval_revision,
       targetId: item.operation.target_id,
       label: item.operation.label,
       configEntryId: item.operation.config_entry_id ?? undefined,
@@ -1129,7 +1181,7 @@ export class HaosAiPanel extends LitElement {
 
   private openChangeApproval(item: Suggestion): void {
     const change = this.changeFor(item);
-    if (!change || !this.canApply(change)) return;
+    if (!change || !change.expectedRevision || !this.canApply(change)) return;
     this.pendingChange = change;
     this.diffLines = undefined;
     this.diffError = "";
@@ -1139,28 +1191,49 @@ export class HaosAiPanel extends LitElement {
 
   /** Fetch the stored automation so the approval dialog can show a real diff. */
   private async loadDiff(automationId: string): Promise<void> {
+    const change = this.pendingChange;
+    const request = ++this.diffRequest;
+    const currentRequest = () =>
+      request === this.diffRequest &&
+      this.pendingChange === change &&
+      this.selectedId === change?.suggestionId &&
+      this.dialog === "approve-change" &&
+      this.draftYaml === change?.draftYaml;
     this.diffLoading = true;
     this.diffError = "";
     try {
-      const current = await this.call<{ found: boolean; yaml: string }>(
-        "haos_ai/automation/current",
-        { automation_id: automationId },
+      const current = await this.call<{ found: boolean; yaml: string; config_hash: string }>(
+        "haos_ai/automation/current", { automation_id: automationId },
       );
-      if (!current.found) {
+      if (!currentRequest() || !change) return;
+      if (!current.found || !current.config_hash) {
         this.diffError = this.t("diff.unavailable");
         return;
       }
-      this.diffLines = diffLines(current.yaml, this.draftYaml);
+      change.configHash = current.config_hash;
+      this.diffLines = diffLines(current.yaml, change.draftYaml ?? "");
     } catch (error) {
-      this.diffError = this.describeError(error);
+      if (currentRequest()) this.diffError = this.describeError(error);
     } finally {
-      this.diffLoading = false;
+      if (currentRequest()) this.diffLoading = false;
     }
+  }
+
+  private approvalCurrent(change: PendingChange): boolean {
+    return (
+      this.selectedId === change.suggestionId &&
+      this.selected?.approval_revision === change.expectedRevision &&
+      !!change.expectedRevision &&
+      (change.draftYaml === undefined ||
+        (this.draftYaml === change.draftYaml && !!this.draftValidation?.valid)) &&
+      (change.kind !== "update_automation" ||
+        (!!change.configHash && !!this.diffLines && !this.diffLoading && !this.diffError))
+    );
   }
 
   private async approveChange(): Promise<void> {
     const change = this.pendingChange;
-    if (!change || !this.canApply(change) || !this.hass) return;
+    if (!change || !this.canApply(change) || !this.hass || !this.approvalCurrent(change)) return;
     const isAutomation =
       change.kind === "create_automation" || change.kind === "update_automation";
     // The dialog stays up, with its buttons disabled, until the write settles.
@@ -1182,19 +1255,27 @@ export class HaosAiPanel extends LitElement {
       }
       // Every kind goes through the same backend gate, which re-checks the
       // permission, re-validates, and confirms the target is still current.
-      await this.call("haos_ai/change/apply", {
+      const result = await this.call<{ reload_failed?: boolean }>("haos_ai/change/apply", {
         suggestion_id: change.suggestionId,
+        expected_revision: change.expectedRevision,
+        ...(change.configHash ? { expected_config_hash: change.configHash } : {}),
         confirm: true,
         operation: change.kind,
         ...(isAutomation ? { config } : {}),
       });
       this.pendingChange = undefined;
       this.diffLines = undefined;
-      this.draftDirty = false;
+      if (this.selectedId === change.suggestionId && this.draftYaml === change.draftYaml) {
+        this.draftDirty = false;
+      }
       this.dialog = null;
       this.settingsNotice = "Approved change applied by Home Assistant.";
       await this.loadOverview();
       if (this.tab === "activity") await this.loadActivity();
+      if (result.reload_failed) {
+        this.settingsNotice = "";
+        this.error = "Automation saved, but Home Assistant reload failed. The saved automation may not be active. Reload automations manually in Home Assistant, or restart Home Assistant. Do not approve this change again.";
+      }
     } catch (error) {
       this.error = this.describeError(error);
       // Close on failure too, so the alert inside the panel is readable.
@@ -1339,6 +1420,17 @@ export class HaosAiPanel extends LitElement {
   }
 
   private async validateDraft(): Promise<void> {
+    const request = ++this.validationRequest;
+    const selectedId = this.selectedId;
+    const revision = this.selected?.approval_revision;
+    const yaml = this.draftYaml;
+    const version = this.draftVersion;
+    const current = () =>
+      request === this.validationRequest &&
+      selectedId === this.selectedId &&
+      revision === this.selected?.approval_revision &&
+      yaml === this.draftYaml &&
+      version === this.draftVersion;
     this.draftError = "";
     let config: unknown;
     try {
@@ -1351,20 +1443,22 @@ export class HaosAiPanel extends LitElement {
       this.draftError = "Automation YAML must contain one object.";
       return;
     }
+    const operation = ++this.validationOperation;
     this.busy = true;
     try {
       const result = await this.call<{
         validation: ValidationResult;
         yaml: string;
       }>("haos_ai/automation/validate", { config });
+      if (!current()) return;
       this.draftYaml = result.yaml;
       this.draftValidation = result.validation;
       // The validated draft is what the user is working on; keep it.
       this.draftDirty = true;
     } catch (error) {
-      this.draftError = this.describeError(error);
+      if (current()) this.draftError = this.describeError(error);
     } finally {
-      this.busy = false;
+      if (operation === this.validationOperation) this.busy = false;
     }
   }
 
@@ -1475,6 +1569,11 @@ export class HaosAiPanel extends LitElement {
   }
 
   private changeTab(tab: Tab): void {
+    if (tab !== "activity") {
+      this.receiptRequest += 1;
+      this.selectedReceiptId = undefined;
+      this.receipt = undefined;
+    }
     this.tab = tab;
     if (tab === "chat") {
       void this.loadThreads();
@@ -1850,6 +1949,8 @@ export class HaosAiPanel extends LitElement {
                   spellcheck="false"
                   .value=${this.draftYaml}
                   @input=${(event: InputEvent) => {
+                    this.draftVersion += 1;
+                    this.validationRequest += 1;
                     this.draftYaml = (event.target as HTMLTextAreaElement).value;
                     this.draftValidation = undefined;
                     this.draftDirty = true;
@@ -2333,6 +2434,7 @@ export class HaosAiPanel extends LitElement {
           class="mobile-back"
           appearance="plain"
           @click=${() => {
+            this.receiptRequest += 1;
             this.selectedReceiptId = undefined;
             this.receipt = undefined;
           }}
@@ -3297,9 +3399,7 @@ export class HaosAiPanel extends LitElement {
             <ha-button
               variant=${destructive ? "danger" : nothing}
               appearance=${destructive ? "filled" : "accent"}
-              ?disabled=${this.busy ||
-              (change.kind === "update_automation" &&
-                (this.diffLoading || !!this.diffError))}
+              ?disabled=${this.busy || !this.approvalCurrent(change)}
               @click=${this.approveChange}
             >${destructive
               ? "Approve & remove"

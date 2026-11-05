@@ -4598,7 +4598,7 @@ var $ = class extends Ne {
 			update_automations: !1,
 			remove_entities: !1,
 			remove_devices: !1
-		}, this.quietStart = "22:00", this.quietEnd = "07:00", this.providerDraft = "", this.modelDraft = "", this.baseUrlDraft = "", this.apiKeyDraft = "", this.showConnectionAdvanced = !1, this.historyDays = 30, this.includeExactLocation = !1, this.schedule = "manual", this.scheduleTime = "03:00", this.scheduleWeekday = 0, this.notifyNewSuggestions = !0, this.settingsNotice = "", this.copied = !1, this.draftYaml = "", this.draftError = "", this.dialog = null, this.feedbackReason = "", this.feedbackNote = "", this.renameText = "", this.scanProfileEnabled = !1, this.scanProviderDraft = "", this.scanModelDraft = "", this.scanBaseUrlDraft = "", this.scanApiKeyDraft = "", this.diffError = "", this.diffLoading = !1, this.started = !1, this.subscription = 0, this.localRuns = 0, this.overviewRequest = 0, this.draftDirty = !1;
+		}, this.quietStart = "22:00", this.quietEnd = "07:00", this.providerDraft = "", this.modelDraft = "", this.baseUrlDraft = "", this.apiKeyDraft = "", this.showConnectionAdvanced = !1, this.historyDays = 30, this.includeExactLocation = !1, this.schedule = "manual", this.scheduleTime = "03:00", this.scheduleWeekday = 0, this.notifyNewSuggestions = !0, this.settingsNotice = "", this.copied = !1, this.draftYaml = "", this.draftError = "", this.dialog = null, this.feedbackReason = "", this.feedbackNote = "", this.renameText = "", this.scanProfileEnabled = !1, this.scanProviderDraft = "", this.scanModelDraft = "", this.scanBaseUrlDraft = "", this.scanApiKeyDraft = "", this.diffError = "", this.diffLoading = !1, this.started = !1, this.subscription = 0, this.localRuns = 0, this.overviewRequest = 0, this.draftDirty = !1, this.validationRequest = 0, this.validationOperation = 0, this.draftVersion = 0, this.threadRequest = 0, this.threadView = 0, this.threadsRequest = 0, this.receiptRequest = 0, this.diffRequest = 0;
 	}
 	connectedCallback() {
 		super.connectedCallback(), this.start();
@@ -4607,7 +4607,8 @@ var $ = class extends Ne {
 		this.subscription += 1, this.unsubscribeProgress?.(), this.unsubscribeProgress = void 0, this.progressTimer && window.clearTimeout(this.progressTimer), this.progressTimer = void 0, this.started = !1, super.disconnectedCallback();
 	}
 	willUpdate(e) {
-		if (e.has("hass") && this.start(), e.has("selectedId")) {
+		if (e.has("hass") && this.start(), (e.has("draftYaml") || e.has("selectedId")) && (this.draftVersion += 1, this.validationRequest += 1), e.has("selectedId")) {
+			this.draftApprovalRevision = this.selected?.approval_revision;
 			let e = this.selected?.automation?.yaml ?? "";
 			this.draftYaml = e, this.draftValidation = this.selected?.automation?.validation, this.draftError = "", this.draftDirty = !1;
 		}
@@ -4671,7 +4672,7 @@ var $ = class extends Ne {
 	syncDraft(e) {
 		if (!this.selectedId || this.draftDirty) return;
 		let t = e.suggestions.find((e) => e.id === this.selectedId);
-		t?.automation && (this.draftYaml = t.automation.yaml ?? "", this.draftValidation = t.automation.validation, this.draftError = "");
+		t?.automation && (this.draftApprovalRevision = t.approval_revision, this.draftYaml = t.automation.yaml ?? "", this.draftValidation = t.automation.validation, this.draftError = "");
 	}
 	hydrateSettings(e) {
 		let t = e.preferences;
@@ -4744,26 +4745,28 @@ var $ = class extends Ne {
 		this.dialog = null, await this.updateSuggestion(e.id, "dismissed", t);
 	}
 	async loadThreads() {
+		let e = ++this.threadsRequest;
 		try {
-			let e = await this.call("haos_ai/chat/threads");
-			this.threads = Array.isArray(e) ? e : [];
-		} catch (e) {
-			this.error = this.describeError(e);
+			let t = await this.call("haos_ai/chat/threads");
+			e === this.threadsRequest && (this.threads = Array.isArray(t) ? t : []);
+		} catch (t) {
+			e === this.threadsRequest && (this.error = this.describeError(t));
 		}
 	}
 	async loadThread() {
+		let e = this.threadId, t = ++this.threadRequest, n = this.threadView, r = () => t === this.threadRequest && e === this.threadId && n === this.threadView;
 		try {
-			let e = await this.call("haos_ai/chat/thread", { thread_id: this.threadId });
-			this.chat = Array.isArray(e) ? e : [];
+			let t = await this.call("haos_ai/chat/thread", { thread_id: e });
+			r() && (this.chat = Array.isArray(t) ? t : []);
 		} catch (e) {
-			this.error = this.describeError(e);
+			r() && (this.error = this.describeError(e));
 		}
 	}
 	async selectThread(e) {
-		this.threadId = e, this.chat = [], await this.loadThread();
+		this.threadView += 1, this.threadId = e, this.chat = [], this.chatText = "", await this.loadThread();
 	}
 	newThread() {
-		this.threadId = crypto.randomUUID().replaceAll("-", "").slice(0, 40), this.chat = [], this.chatText = "";
+		this.threadView += 1, this.threadRequest += 1, this.threadId = crypto.randomUUID().replaceAll("-", "").slice(0, 40), this.chat = [], this.chatText = "";
 	}
 	openRenameThread() {
 		let e = this.threads.find((e) => e.id === this.threadId);
@@ -4785,8 +4788,10 @@ var $ = class extends Ne {
 	}
 	async deleteThread() {
 		this.dialogPending = !0;
+		let e = this.threadId;
+		this.threadView += 1, this.threadRequest += 1;
 		try {
-			await this.call("haos_ai/chat/thread/delete", { thread_id: this.threadId }), this.newThread(), await this.loadThreads();
+			await this.call("haos_ai/chat/thread/delete", { thread_id: e }), this.threadId === e && this.newThread(), await this.loadThreads();
 		} catch (e) {
 			this.error = this.describeError(e);
 		} finally {
@@ -4795,24 +4800,23 @@ var $ = class extends Ne {
 	}
 	async sendChat() {
 		let e = this.chatText.trim();
-		if (e && !this.busy) {
-			this.chatText = "", this.chat = [...this.chat, {
-				id: `pending-${Date.now()}`,
-				role: "user",
-				content: e,
-				created_at: (/* @__PURE__ */ new Date()).toISOString()
-			}], this.busy = !0, this.progress = { stage: "provider" }, this.error = "", this.localRuns += 1;
-			try {
-				let t = await this.call("haos_ai/chat", {
-					thread_id: this.threadId,
-					text: e
-				});
-				this.chat = [...this.chat, t.message], await this.loadThreads();
-			} catch (e) {
-				this.error = this.describeError(e), await this.loadThread();
-			} finally {
-				--this.localRuns, this.busy = !1, this.progress = void 0;
-			}
+		if (!e || this.busy) return;
+		let t = this.threadId, n = this.threadView;
+		this.threadRequest += 1, this.chatText = "", this.chat = [...this.chat, {
+			id: `pending-${Date.now()}`,
+			role: "user",
+			content: e,
+			created_at: (/* @__PURE__ */ new Date()).toISOString()
+		}], this.busy = !0, this.progress = { stage: "provider" }, this.error = "", this.localRuns += 1;
+		try {
+			await this.call("haos_ai/chat", {
+				thread_id: t,
+				text: e
+			}), t === this.threadId && n === this.threadView && await this.loadThread(), await this.loadThreads();
+		} catch (e) {
+			t === this.threadId && n === this.threadView && (this.error = this.describeError(e), await this.loadThread());
+		} finally {
+			--this.localRuns, this.busy = !1, this.progress = void 0;
 		}
 	}
 	async loadActivity() {
@@ -4823,11 +4827,13 @@ var $ = class extends Ne {
 		}
 	}
 	async openReceipt(e) {
+		let t = ++this.receiptRequest;
 		this.selectedReceiptId = e, this.receipt = void 0;
 		try {
-			this.receipt = await this.call("haos_ai/privacy_receipt", { receipt_id: e });
-		} catch (e) {
-			this.error = this.describeError(e);
+			let n = await this.call("haos_ai/privacy_receipt", { receipt_id: e });
+			t === this.receiptRequest && this.selectedReceiptId === e && (this.receipt = n);
+		} catch (n) {
+			t === this.receiptRequest && this.selectedReceiptId === e && (this.error = this.describeError(n));
 		}
 	}
 	async savePreferences() {
@@ -4932,12 +4938,15 @@ var $ = class extends Ne {
 		if (e.automation) return {
 			kind: e.automation.target_id ? "update_automation" : "create_automation",
 			suggestionId: e.id,
+			expectedRevision: this.draftApprovalRevision ?? e.approval_revision,
+			draftYaml: this.draftYaml,
 			targetId: e.automation.target_id ?? "new automation",
 			label: e.title
 		};
 		if (e.operation) return {
 			kind: e.operation.type,
 			suggestionId: e.id,
+			expectedRevision: e.approval_revision,
 			targetId: e.operation.target_id,
 			label: e.operation.label,
 			configEntryId: e.operation.config_entry_id ?? void 0
@@ -4953,26 +4962,31 @@ var $ = class extends Ne {
 	}
 	openChangeApproval(e) {
 		let t = this.changeFor(e);
-		t && this.canApply(t) && (this.pendingChange = t, this.diffLines = void 0, this.diffError = "", this.dialog = "approve-change", t.kind === "update_automation" && this.loadDiff(t.targetId));
+		t && t.expectedRevision && this.canApply(t) && (this.pendingChange = t, this.diffLines = void 0, this.diffError = "", this.dialog = "approve-change", t.kind === "update_automation" && this.loadDiff(t.targetId));
 	}
 	async loadDiff(e) {
+		let t = this.pendingChange, n = ++this.diffRequest, r = () => n === this.diffRequest && this.pendingChange === t && this.selectedId === t?.suggestionId && this.dialog === "approve-change" && this.draftYaml === t?.draftYaml;
 		this.diffLoading = !0, this.diffError = "";
 		try {
-			let t = await this.call("haos_ai/automation/current", { automation_id: e });
-			if (!t.found) {
+			let n = await this.call("haos_ai/automation/current", { automation_id: e });
+			if (!r() || !t) return;
+			if (!n.found || !n.config_hash) {
 				this.diffError = this.t("diff.unavailable");
 				return;
 			}
-			this.diffLines = hi(t.yaml, this.draftYaml);
+			t.configHash = n.config_hash, this.diffLines = hi(n.yaml, t.draftYaml ?? "");
 		} catch (e) {
-			this.diffError = this.describeError(e);
+			r() && (this.diffError = this.describeError(e));
 		} finally {
-			this.diffLoading = !1;
+			r() && (this.diffLoading = !1);
 		}
+	}
+	approvalCurrent(e) {
+		return this.selectedId === e.suggestionId && this.selected?.approval_revision === e.expectedRevision && !!e.expectedRevision && (e.draftYaml === void 0 || this.draftYaml === e.draftYaml && !!this.draftValidation?.valid) && (e.kind !== "update_automation" || !!e.configHash && !!this.diffLines && !this.diffLoading && !this.diffError);
 	}
 	async approveChange() {
 		let e = this.pendingChange;
-		if (!e || !this.canApply(e) || !this.hass) return;
+		if (!e || !this.canApply(e) || !this.hass || !this.approvalCurrent(e)) return;
 		let t = e.kind === "create_automation" || e.kind === "update_automation";
 		this.dialogPending = !0, this.busy = !0, this.error = "";
 		try {
@@ -4981,12 +4995,15 @@ var $ = class extends Ne {
 				if (!this.draftValidation?.valid) throw Error("Validate the current automation draft before approval.");
 				if (n = ui(this.draftYaml), !n || typeof n != "object" || Array.isArray(n)) throw Error("Automation YAML must contain one object.");
 			} else if (e.kind === "remove_device" && !e.configEntryId) throw Error("The device's integration reference is missing.");
-			await this.call("haos_ai/change/apply", {
+			let r = await this.call("haos_ai/change/apply", {
 				suggestion_id: e.suggestionId,
+				expected_revision: e.expectedRevision,
+				...e.configHash ? { expected_config_hash: e.configHash } : {},
 				confirm: !0,
 				operation: e.kind,
 				...t ? { config: n } : {}
-			}), this.pendingChange = void 0, this.diffLines = void 0, this.draftDirty = !1, this.dialog = null, this.settingsNotice = "Approved change applied by Home Assistant.", await this.loadOverview(), this.tab === "activity" && await this.loadActivity();
+			});
+			this.pendingChange = void 0, this.diffLines = void 0, this.selectedId === e.suggestionId && this.draftYaml === e.draftYaml && (this.draftDirty = !1), this.dialog = null, this.settingsNotice = "Approved change applied by Home Assistant.", await this.loadOverview(), this.tab === "activity" && await this.loadActivity(), r.reload_failed && (this.settingsNotice = "", this.error = "Automation saved, but Home Assistant reload failed. The saved automation may not be active. Reload automations manually in Home Assistant, or restart Home Assistant. Do not approve this change again.");
 		} catch (e) {
 			this.error = this.describeError(e), this.dialog = null;
 		} finally {
@@ -5057,26 +5074,29 @@ var $ = class extends Ne {
 		t.some((e) => e.includes(".")) && (e.preventDefault(), this.addIgnoredEntities(t));
 	}
 	async validateDraft() {
+		let e = ++this.validationRequest, t = this.selectedId, n = this.selected?.approval_revision, r = this.draftYaml, i = this.draftVersion, a = () => e === this.validationRequest && t === this.selectedId && n === this.selected?.approval_revision && r === this.draftYaml && i === this.draftVersion;
 		this.draftError = "";
-		let e;
+		let o;
 		try {
-			e = ui(this.draftYaml);
+			o = ui(this.draftYaml);
 		} catch (e) {
 			this.draftError = `YAML syntax: ${this.describeError(e)}`;
 			return;
 		}
-		if (!e || typeof e != "object" || Array.isArray(e)) {
+		if (!o || typeof o != "object" || Array.isArray(o)) {
 			this.draftError = "Automation YAML must contain one object.";
 			return;
 		}
+		let s = ++this.validationOperation;
 		this.busy = !0;
 		try {
-			let t = await this.call("haos_ai/automation/validate", { config: e });
-			this.draftYaml = t.yaml, this.draftValidation = t.validation, this.draftDirty = !0;
+			let e = await this.call("haos_ai/automation/validate", { config: o });
+			if (!a()) return;
+			this.draftYaml = e.yaml, this.draftValidation = e.validation, this.draftDirty = !0;
 		} catch (e) {
-			this.draftError = this.describeError(e);
+			a() && (this.draftError = this.describeError(e));
 		} finally {
-			this.busy = !1;
+			s === this.validationOperation && (this.busy = !1);
 		}
 	}
 	async copyYaml(e = this.draftYaml) {
@@ -5133,7 +5153,7 @@ var $ = class extends Ne {
 		this.tab === "chat" && this.loadThread();
 	}
 	changeTab(e) {
-		this.tab = e, e === "chat" && (this.loadThreads(), this.chat.length === 0 && this.loadThread()), e === "activity" && this.loadActivity();
+		e !== "activity" && (this.receiptRequest += 1, this.selectedReceiptId = void 0, this.receipt = void 0), this.tab = e, e === "chat" && (this.loadThreads(), this.chat.length === 0 && this.loadThread()), e === "activity" && this.loadActivity();
 	}
 	render() {
 		return D`
@@ -5442,7 +5462,7 @@ var $ = class extends Ne {
                   spellcheck="false"
                   .value=${this.draftYaml}
                   @input=${(e) => {
-			this.draftYaml = e.target.value, this.draftValidation = void 0, this.draftDirty = !0;
+			this.draftVersion += 1, this.validationRequest += 1, this.draftYaml = e.target.value, this.draftValidation = void 0, this.draftDirty = !0;
 		}}
                 ></textarea>
                 <div class="yaml-actions">
@@ -5838,7 +5858,7 @@ var $ = class extends Ne {
           class="mobile-back"
           appearance="plain"
           @click=${() => {
-			this.selectedReceiptId = void 0, this.receipt = void 0;
+			this.receiptRequest += 1, this.selectedReceiptId = void 0, this.receipt = void 0;
 		}}
         >
           <ha-icon icon="mdi:arrow-left" slot="start"></ha-icon>
@@ -6626,7 +6646,7 @@ var $ = class extends Ne {
             <ha-button
               variant=${t ? "danger" : O}
               appearance=${t ? "filled" : "accent"}
-              ?disabled=${this.busy || e.kind === "update_automation" && (this.diffLoading || !!this.diffError)}
+              ?disabled=${this.busy || !this.approvalCurrent(e)}
               @click=${this.approveChange}
             >${t ? "Approve & remove" : e.kind === "update_automation" ? "Approve & update" : "Approve & create"}</ha-button>
           </div>
